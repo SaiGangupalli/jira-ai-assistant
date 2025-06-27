@@ -1,20 +1,20 @@
+# database/validators.py
 import logging
-from typing import Dict, List, Any, Optional
-from models.validation_models import OrderValidationResult, MandatoryField
+from typing import Dict, Any
 from database.connection import OracleConnection
 from config.settings import Config
 
 logger = logging.getLogger(__name__)
 
 class OrderValidator:
-    """Oracle DB validator for order data"""
+    """Simple Oracle DB validator for order data"""
     
     def __init__(self):
         self.mandatory_fields = Config.ORDER_MANDATORY_FIELDS
     
     def validate_order(self, order_number: str, location_code: str) -> Dict[str, Any]:
         """
-        Validate order in Oracle DB by checking mandatory parameters
+        Validate order by running SELECT query and checking mandatory fields
         
         Args:
             order_number: Order number to validate
@@ -26,162 +26,169 @@ class OrderValidator:
         try:
             logger.info(f"Validating order {order_number} at location {location_code}")
             
-            # Get order data from database
-            order_data = self._get_order_data(order_number, location_code)
+            # Simple SELECT query to get order data
+            query = """
+            SELECT 
+                order_id,
+                order_number,
+                customer_id,
+                order_date,
+                delivery_address,
+                order_status,
+                total_amount,
+                location_code
+            FROM orders 
+            WHERE order_number = :order_number 
+            AND location_code = :location_code
+            """
             
-            if not order_data:
-                return OrderValidationResult(
-                    success=False,
-                    order_number=order_number,
-                    location_code=location_code,
-                    error="Order not found in database"
-                ).to_dict()
+            # Execute query
+            results = OracleConnection.execute_select(query, {
+                'order_number': order_number,
+                'location_code': location_code
+            })
+            
+            # Check if order exists
+            if not results:
+                return {
+                    'success': False,
+                    'order_number': order_number,
+                    'location_code': location_code,
+                    'error': 'Order not found in database'
+                }
+            
+            order_data = results[0]  # Get first result
             
             # Validate mandatory fields
-            validation_results = self._validate_mandatory_fields(order_data)
+            missing_fields = []
+            field_status = {}
             
-            # Calculate overall validation status
-            missing_fields = [field.field_name for field in validation_results if not field.is_valid]
+            for field in self.mandatory_fields:
+                value = order_data.get(field)
+                is_valid = value is not None and str(value).strip() != ''
+                
+                field_status[field] = {
+                    'value': value,
+                    'is_valid': is_valid
+                }
+                
+                if not is_valid:
+                    missing_fields.append(field)
+            
+            # Overall validation status
             is_valid = len(missing_fields) == 0
             
-            return OrderValidationResult(
-                success=True,
-                order_number=order_number,
-                location_code=location_code,
-                is_valid=is_valid,
-                mandatory_fields=validation_results,
-                missing_fields=missing_fields,
-                order_data=self._sanitize_order_data(order_data)
-            ).to_dict()
+            return {
+                'success': True,
+                'order_number': order_number,
+                'location_code': location_code,
+                'is_valid': is_valid,
+                'missing_fields': missing_fields,
+                'field_status': field_status,
+                'order_data': order_data,
+                'mandatory_fields': [
+                    {
+                        'field_name': field,
+                        'field_value': field_status[field]['value'],
+                        'is_valid': field_status[field]['is_valid'],
+                        'error_message': None if field_status[field]['is_valid'] else f"Field '{field}' is missing or empty"
+                    }
+                    for field in self.mandatory_fields
+                ]
+            }
             
         except Exception as e:
             logger.error(f"Error validating order {order_number}: {e}")
-            return OrderValidationResult(
-                success=False,
-                order_number=order_number,
-                location_code=location_code,
-                error=f"Validation failed: {str(e)}"
-            ).to_dict()
+            return {
+                'success': False,
+                'order_number': order_number,
+                'location_code': location_code,
+                'error': f'Validation failed: {str(e)}'
+            }
     
-    def _get_order_data(self, order_number: str, location_code: str) -> Optional[Dict[str, Any]]:
-        """Fetch order data from Oracle database"""
-        query = """
-        SELECT 
-            o.order_id,
-            o.order_number,
-            o.customer_id,
-            o.order_date,
-            o.delivery_address,
-            o.order_status,
-            o.total_amount,
-            o.location_code,
-            o.created_date,
-            o.updated_date,
-            c.customer_name,
-            c.customer_email,
-            c.customer_phone
-        FROM orders o
-        LEFT JOIN customers c ON o.customer_id = c.customer_id
-        WHERE o.order_number = :order_number 
-        AND o.location_code = :location_code
+    def get_order_info(self, order_number: str, location_code: str) -> Dict[str, Any]:
         """
+        Get basic order information (without validation)
         
-        try:
-            with OracleConnection.get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute(query, {
-                    'order_number': order_number,
-                    'location_code': location_code
-                })
-                
-                columns = [desc[0].lower() for desc in cursor.description]
-                row = cursor.fetchone()
-                cursor.close()
-                
-                if row:
-                    return dict(zip(columns, row))
-                return None
-                
-        except Exception as e:
-            logger.error(f"Database query error: {e}")
-            raise
-    
-    def _validate_mandatory_fields(self, order_data: Dict[str, Any]) -> List[MandatoryField]:
-        """Validate that all mandatory fields have values"""
-        validation_results = []
-        
-        for field_name in self.mandatory_fields:
-            field_value = order_data.get(field_name)
-            is_valid = field_value is not None and str(field_value).strip() != ''
+        Args:
+            order_number: Order number
+            location_code: Location code
             
-            validation_results.append(MandatoryField(
-                field_name=field_name,
-                field_value=field_value,
-                is_valid=is_valid,
-                error_message=None if is_valid else f"Field '{field_name}' is missing or empty"
-            ))
-        
-        return validation_results
-    
-    def _sanitize_order_data(self, order_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Remove sensitive data and format for response"""
-        # Create a copy to avoid modifying original data
-        sanitized = order_data.copy()
-        
-        # Format dates
-        for date_field in ['order_date', 'created_date', 'updated_date']:
-            if date_field in sanitized and sanitized[date_field]:
-                sanitized[date_field] = sanitized[date_field].isoformat() if hasattr(sanitized[date_field], 'isoformat') else str(sanitized[date_field])
-        
-        # Remove sensitive fields (if any)
-        sensitive_fields = ['customer_email', 'customer_phone']
-        for field in sensitive_fields:
-            if field in sanitized:
-                # Mask email and phone for privacy
-                if field == 'customer_email' and sanitized[field]:
-                    email = str(sanitized[field])
-                    if '@' in email:
-                        name, domain = email.split('@')
-                        sanitized[field] = f"{name[:2]}***@{domain}"
-                elif field == 'customer_phone' and sanitized[field]:
-                    phone = str(sanitized[field])
-                    sanitized[field] = f"***-***-{phone[-4:]}" if len(phone) >= 4 else "***"
-        
-        return sanitized
-    
-    def get_order_history(self, customer_id: str, limit: int = 10) -> List[Dict[str, Any]]:
-        """Get order history for a customer"""
-        query = """
-        SELECT 
-            order_number,
-            order_date,
-            order_status,
-            total_amount,
-            location_code
-        FROM orders 
-        WHERE customer_id = :customer_id 
-        ORDER BY order_date DESC
-        FETCH FIRST :limit ROWS ONLY
+        Returns:
+            Order data or error
         """
-        
         try:
-            with OracleConnection.get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute(query, {
-                    'customer_id': customer_id,
-                    'limit': limit
-                })
-                
-                columns = [desc[0].lower() for desc in cursor.description]
-                rows = cursor.fetchall()
-                cursor.close()
-                
-                return [dict(zip(columns, row)) for row in rows]
+            query = """
+            SELECT 
+                order_id,
+                order_number,
+                customer_id,
+                order_date,
+                delivery_address,
+                order_status,
+                total_amount,
+                location_code,
+                created_date
+            FROM orders 
+            WHERE order_number = :order_number 
+            AND location_code = :location_code
+            """
+            
+            results = OracleConnection.execute_select(query, {
+                'order_number': order_number,
+                'location_code': location_code
+            })
+            
+            if results:
+                return {
+                    'success': True,
+                    'order_data': results[0]
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': 'Order not found'
+                }
                 
         except Exception as e:
-            logger.error(f"Error fetching order history: {e}")
-            raise
+            logger.error(f"Error getting order info: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
     
     def test_connection(self):
-        """Test Oracle database connection"""
-        return OracleConnection.test_connection()
+        """Test database connection and orders table access"""
+        try:
+            # Test basic connection
+            connection_test = OracleConnection.test_connection()
+            
+            if not connection_test['success']:
+                return connection_test
+            
+            # Test orders table access
+            try:
+                query = "SELECT COUNT(*) as order_count FROM orders WHERE ROWNUM <= 1"
+                result = OracleConnection.execute_select(query)
+                
+                return {
+                    'success': True,
+                    'message': 'Oracle connection and orders table access successful',
+                    'orders_table_accessible': True,
+                    'driver': 'oracledb'
+                }
+            except Exception as e:
+                return {
+                    'success': True,  # Connection works
+                    'message': 'Oracle connection successful but orders table inaccessible',
+                    'orders_table_accessible': False,
+                    'orders_table_error': str(e),
+                    'driver': 'oracledb'
+                }
+                
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f'Connection test failed: {str(e)}',
+                'driver': 'oracledb'
+            }
