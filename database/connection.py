@@ -1,81 +1,93 @@
-
 # database/connection.py
-import cx_Oracle
+import oracledb
 import logging
-from contextlib import contextmanager
 from config.settings import Config
 
 logger = logging.getLogger(__name__)
 
 class OracleConnection:
-    """Oracle database connection manager with connection pooling"""
-    
-    _pool = None
+    """Simple Oracle database connection for SELECT queries only"""
     
     @classmethod
-    def initialize_pool(cls):
-        """Initialize Oracle connection pool"""
+    def get_connection(cls):
+        """Get a simple Oracle database connection"""
         try:
-            if cls._pool is None:
-                logger.info("Initializing Oracle connection pool...")
-                cls._pool = cx_Oracle.create_pool(
-                    user=Config.ORACLE_USER,
-                    password=Config.ORACLE_PASSWORD,
-                    dsn=Config.ORACLE_DSN,
-                    min=Config.ORACLE_POOL_MIN,
-                    max=Config.ORACLE_POOL_MAX,
-                    increment=Config.ORACLE_POOL_INCREMENT,
-                    encoding="UTF-8"
-                )
-                logger.info("✅ Oracle connection pool initialized successfully")
-        except cx_Oracle.Error as e:
-            logger.error(f"Failed to create Oracle connection pool: {e}")
+            connection = oracledb.connect(
+                user=Config.ORACLE_USER,
+                password=Config.ORACLE_PASSWORD,
+                dsn=Config.ORACLE_DSN
+            )
+            return connection
+        except Exception as e:
+            logger.error(f"Failed to connect to Oracle: {e}")
             raise
     
     @classmethod
-    @contextmanager
-    def get_connection(cls):
-        """Get database connection from pool"""
-        if cls._pool is None:
-            cls.initialize_pool()
+    def execute_select(cls, query: str, params: dict = None):
+        """
+        Execute a SELECT query and return results as list of dictionaries
         
+        Args:
+            query: SQL SELECT query
+            params: Dictionary of parameters for the query
+            
+        Returns:
+            List of dictionaries with column names as keys
+        """
         connection = None
+        cursor = None
         try:
-            connection = cls._pool.acquire()
-            yield connection
-        except cx_Oracle.Error as e:
-            logger.error(f"Database connection error: {e}")
-            if connection:
-                connection.rollback()
+            connection = cls.get_connection()
+            cursor = connection.cursor()
+            
+            if params:
+                cursor.execute(query, params)
+            else:
+                cursor.execute(query)
+            
+            # Get column names
+            columns = [desc[0].lower() for desc in cursor.description]
+            
+            # Fetch all rows
+            rows = cursor.fetchall()
+            
+            # Convert to list of dictionaries
+            result = []
+            for row in rows:
+                row_dict = {}
+                for i, value in enumerate(row):
+                    row_dict[columns[i]] = value
+                result.append(row_dict)
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error executing query: {e}")
             raise
         finally:
+            if cursor:
+                cursor.close()
             if connection:
-                cls._pool.release(connection)
-    
-    @classmethod
-    def close_pool(cls):
-        """Close connection pool"""
-        if cls._pool:
-            cls._pool.close()
-            cls._pool = None
-            logger.info("Oracle connection pool closed")
+                connection.close()
     
     @classmethod
     def test_connection(cls):
         """Test database connection"""
         try:
-            with cls.get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT 1 FROM DUAL")
-                result = cursor.fetchone()
-                cursor.close()
+            result = cls.execute_select("SELECT 1 as test_value FROM DUAL")
+            if result and result[0]['test_value'] == 1:
                 return {
                     'success': True,
                     'message': 'Oracle connection successful',
-                    'result': result[0] if result else None
+                    'driver': 'oracledb'
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': 'Unexpected test query result'
                 }
         except Exception as e:
             return {
                 'success': False,
-                'error': f'Oracle connection failed: {str(e)}'
+                'error': f'Connection test failed: {str(e)}'
             }
