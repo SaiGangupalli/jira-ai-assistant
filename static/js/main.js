@@ -53,7 +53,7 @@ function initializeApp() {
     console.log('App initialized successfully');
 }
 
-// Tab functionality
+// Tab functionality with input field visibility control
 function showTab(tabName) {
     console.log('Switching to tab:', tabName);
     
@@ -77,6 +77,20 @@ function showTab(tabName) {
         activeTab.classList.remove('hidden');
     }
     
+    // Control input container visibility based on tab
+    const inputContainer = document.querySelector('.input-container');
+    if (inputContainer) {
+        if (tabName === 'validation' || tabName === 'security') {
+            // Hide input field for Order Validation and Security Analysis
+            inputContainer.style.display = 'none';
+            console.log('Input field hidden for tab:', tabName);
+        } else {
+            // Show input field for Jira Queries and other tabs
+            inputContainer.style.display = 'flex';
+            console.log('Input field shown for tab:', tabName);
+        }
+    }
+    
     currentTab = tabName;
 }
 
@@ -85,6 +99,12 @@ function useExampleQuery(element) {
     const queryInput = document.getElementById('queryInput');
     if (queryInput) {
         queryInput.value = queryText;
+        
+        // Switch to jira tab if not already there
+        if (currentTab !== 'jira') {
+            showTab('jira');
+        }
+        
         sendQuery();
     }
 }
