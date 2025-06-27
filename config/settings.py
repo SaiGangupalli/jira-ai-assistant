@@ -50,6 +50,18 @@ class Config:
         'order_status',
         'total_amount'
     ]
+
+    # Fields that are optional (won't be treated as mandatory)
+    OPTIONAL_FIELDS = [
+        'created_date',     # System generated timestamp
+        'updated_date',     # System generated timestamp
+        'internal_notes',   # Internal use only
+        'customer_email',   # Optional contact info
+        'customer_phone',   # Optional contact info
+        'delivery_notes',   # Optional delivery instructions
+        'promo_code',       # Optional promotional code
+        'tracking_number'   # May not be assigned yet
+    ]
     
     @property
     def ORACLE_DSN(self):
