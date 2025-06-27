@@ -1,0 +1,107 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jira AI Assistant with Oracle DB</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Jira AI Assistant</h1>
+            <p>AI-powered Jira queries with Oracle DB order validation</p>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-indicator"></div>
+            <span>✅ Connected to Jira & Oracle DB - Ready to process your queries</span>
+        </div>
+
+        <div class="main-content">
+            <div class="chat-container" id="chatContainer">
+                <div class="welcome-message">
+                    <h2>Welcome to your Enhanced Jira AI Assistant! 👋</h2>
+                    <p>Your Jira and Oracle DB connections are configured and ready. Choose your operation:</p>
+                    
+                    <div class="feature-tabs">
+                        <button class="tab-button active" onclick="showTab('jira')">
+                            📋 Jira Queries
+                        </button>
+                        <button class="tab-button" onclick="showTab('validation')">
+                            🔍 Order Validation
+                        </button>
+                        <button class="tab-button" onclick="showTab('security')">
+                            🛡️ Security Analysis
+                        </button>
+                    </div>
+
+                    <div class="tab-content" id="jira-tab">
+                        <h3>Jira Query Examples</h3>
+                        <div class="example-queries">
+                            <div class="example-query" onclick="useExampleQuery(this)">
+                                <h4>📋 Find Stories by Assignee</h4>
+                                <p>Show me all stories assigned to John Smith</p>
+                            </div>
+                            <div class="example-query" onclick="useExampleQuery(this)">
+                                <h4>🐛 Search by Issue Type</h4>
+                                <p>Find all bugs in the DEV project</p>
+                            </div>
+                            <div class="example-query" onclick="useExampleQuery(this)">
+                                <h4>📈 Status Filtering</h4>
+                                <p>What are the open epics for this sprint?</p>
+                            </div>
+                            <div class="example-query" onclick="useExampleQuery(this)">
+                                <h4>📅 Date Range Queries</h4>
+                                <p>Show me stories created in the last week</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tab-content hidden" id="validation-tab">
+                        <h3>Order Validation</h3>
+                        <div class="validation-form">
+                            <div class="form-group">
+                                <label for="orderNumber">Order Number:</label>
+                                <input type="text" id="orderNumber" placeholder="e.g., ORD-123456, ORDER_789" maxlength="20">
+                            </div>
+                            <div class="form-group">
+                                <label for="locationCode">Location Code:</label>
+                                <input type="text" id="locationCode" placeholder="e.g., NYC, LA, CHI" maxlength="5">
+                            </div>
+                            <button class="validate-button" onclick="validateOrder()">
+                                🔍 Validate Order
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="tab-content hidden" id="security-tab">
+                        <h3>Security Impact Analysis</h3>
+                        <div class="security-form">
+                            <div class="form-group">
+                                <label for="issueKey">Issue Key:</label>
+                                <input type="text" id="issueKey" placeholder="e.g., PROJ-123, DEV-456" maxlength="20">
+                            </div>
+                            <button class="analyze-button" onclick="analyzeIssueSecurity()">
+                                🛡️ Analyze Security Impact
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-container">
+                <div class="input-wrapper">
+                    <textarea id="queryInput" placeholder="Ask me about your Jira issues, validate orders, or analyze security... Type your question here!" rows="1"></textarea>
+                </div>
+                <button class="send-button" onclick="sendQuery()" id="sendButton">
+                    ➤
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
