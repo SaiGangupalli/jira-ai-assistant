@@ -378,23 +378,47 @@ function formatOrderDataAsTable(orderData) {
     return tableHtml;
 }
 
-// Add back button functionality
-function addBackButton(tabName) {
+unction addBackButton(context, extraInfo = '') {
+    let buttonText = '';
+    let icon = '';
+    
+    switch(context) {
+        case 'validation':
+            buttonText = 'Back to Order Validation';
+            icon = '🔍';
+            break;
+        case 'security':
+            buttonText = 'Back to Security Analysis';
+            icon = '🛡️';
+            break;
+        case 'jira':
+            buttonText = 'Back to Home';
+            icon = '🏠';
+            break;
+        default:
+            buttonText = 'Back';
+            icon = '←';
+    }
+    
+    if (extraInfo) {
+        buttonText += ` ${extraInfo}`;
+    }
+    
     return `
         <div style="margin-bottom: 20px;">
-            <button onclick="goBackToForm('${tabName}')" 
+            <button onclick="goBackToForm('${context}')" 
                     style="background: #333333; color: #ffffff; border: 1px solid #555; padding: 10px 20px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 0.9rem; transition: all 0.2s;"
                     onmouseover="this.style.background='#444444'; this.style.transform='translateY(-1px)'"
                     onmouseout="this.style.background='#333333'; this.style.transform='translateY(0)'">
-                <span>←</span>
-                <span>Back to ${tabName === 'validation' ? 'Order Validation' : 'Security Analysis'}</span>
+                <span>${icon}</span>
+                <span>${buttonText}</span>
             </button>
         </div>
     `;
 }
 
-// Function to go back to the form
-function goBackToForm(tabName) {
+// Enhanced function to go back to different contexts
+function goBackToForm(context) {
     // Clear the chat container and restore the welcome message
     const chatContainer = document.getElementById('chatContainer');
     if (chatContainer) {
@@ -405,18 +429,18 @@ function goBackToForm(tabName) {
                 <p>Your Jira and Oracle DB connections are configured and ready. Choose your operation:</p>
                 
                 <div class="feature-tabs">
-                    <button class="tab-button ${currentTab === 'jira' ? 'active' : ''}" onclick="showTab('jira')">
+                    <button class="tab-button ${context === 'jira' ? 'active' : ''}" onclick="showTab('jira')">
                         📋 Jira Queries
                     </button>
-                    <button class="tab-button ${currentTab === 'validation' ? 'active' : ''}" onclick="showTab('validation')">
+                    <button class="tab-button ${context === 'validation' ? 'active' : ''}" onclick="showTab('validation')">
                         🔍 Order Validation
                     </button>
-                    <button class="tab-button ${currentTab === 'security' ? 'active' : ''}" onclick="showTab('security')">
+                    <button class="tab-button ${context === 'security' ? 'active' : ''}" onclick="showTab('security')">
                         🛡️ Security Analysis
                     </button>
                 </div>
 
-                <div class="tab-content ${currentTab === 'jira' ? '' : 'hidden'}" id="jira-tab">
+                <div class="tab-content ${context === 'jira' ? '' : 'hidden'}" id="jira-tab">
                     <h3>Jira Query Examples</h3>
                     <div class="example-queries">
                         <div class="example-query" onclick="useExampleQuery(this)">
@@ -438,7 +462,7 @@ function goBackToForm(tabName) {
                     </div>
                 </div>
 
-                <div class="tab-content ${currentTab === 'validation' ? '' : 'hidden'}" id="validation-tab">
+                <div class="tab-content ${context === 'validation' ? '' : 'hidden'}" id="validation-tab">
                     <h3>Order Validation</h3>
                     <div class="validation-form">
                         <div class="form-group">
@@ -455,7 +479,7 @@ function goBackToForm(tabName) {
                     </div>
                 </div>
 
-                <div class="tab-content ${currentTab === 'security' ? '' : 'hidden'}" id="security-tab">
+                <div class="tab-content ${context === 'security' ? '' : 'hidden'}" id="security-tab">
                     <h3>Security Impact Analysis</h3>
                     <div class="security-form">
                         <div class="form-group">
@@ -473,19 +497,79 @@ function goBackToForm(tabName) {
         chatContainer.innerHTML = welcomeContent;
         
         // Make sure the correct tab is shown and input visibility is set
-        showTab(tabName);
+        showTab(context);
         
-        // Clear form inputs
-        if (tabName === 'validation') {
+        // Clear form inputs and query input
+        if (context === 'validation') {
             const orderNumber = document.getElementById('orderNumber');
             const locationCode = document.getElementById('locationCode');
             if (orderNumber) orderNumber.value = '';
             if (locationCode) locationCode.value = '';
-        } else if (tabName === 'security') {
+        } else if (context === 'security') {
             const issueKey = document.getElementById('issueKey');
             if (issueKey) issueKey.value = '';
+        } else if (context === 'jira') {
+            const queryInput = document.getElementById('queryInput');
+            if (queryInput) {
+                queryInput.value = '';
+                queryInput.style.height = 'auto';
+            }
         }
+        
+        // Update current tab
+        currentTab = context;
     }
+}
+
+// Function to add bottom action buttons for different contexts
+function addBottomActionButton(context, resultInfo = '') {
+    let buttonText = '';
+    let icon = '';
+    let action = '';
+    
+    switch(context) {
+        case 'validation':
+            buttonText = 'Validate Another Order';
+            icon = '🔍';
+            action = `goBackToForm('validation')`;
+            break;
+        case 'security':
+            buttonText = 'Analyze Another Issue';
+            icon = '🛡️';
+            action = `goBackToForm('security')`;
+            break;
+        case 'jira':
+            buttonText = 'Ask Another Question';
+            icon = '💬';
+            action = `goBackToForm('jira')`;
+            break;
+        default:
+            buttonText = 'Continue';
+            icon = '→';
+            action = `goBackToForm('jira')`;
+    }
+    
+    return `
+        <div style="margin-top: 25px; text-align: center; border-top: 1px solid #444; padding-top: 20px;">
+            <button onclick="${action}" 
+                    style="background: #000000; color: #ffffff; border: 1px solid #333; padding: 12px 24px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; font-size: 1rem; font-weight: 600; transition: all 0.2s; margin-right: 10px;"
+                    onmouseover="this.style.background='#333333'; this.style.transform='translateY(-2px)'"
+                    onmouseout="this.style.background='#000000'; this.style.transform='translateY(0)'">
+                <span>${icon}</span>
+                <span>${buttonText}</span>
+            </button>
+            
+            ${context !== 'jira' ? `
+                <button onclick="goBackToForm('jira')" 
+                        style="background: #333333; color: #ffffff; border: 1px solid #555; padding: 12px 24px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; font-size: 1rem; font-weight: 600; transition: all 0.2s;"
+                        onmouseover="this.style.background='#444444'; this.style.transform='translateY(-2px)'"
+                        onmouseout="this.style.background='#333333'; this.style.transform='translateY(0)'">
+                    <span>🏠</span>
+                    <span>Back to Home</span>
+                </button>
+            ` : ''}
+        </div>
+    `;
 }
 
 // Updated displayValidationResults with back button
@@ -696,17 +780,9 @@ function displayValidationResults(result) {
                 </p>
             </div>
             ${fieldsHtml}
-            
-            <div style="margin-top: 25px; text-align: center;">
-                <button onclick="goBackToForm('validation')" 
-                        style="background: #000000; color: #ffffff; border: 1px solid #333; padding: 12px 24px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; font-size: 1rem; font-weight: 600; transition: all 0.2s;"
-                        onmouseover="this.style.background='#333333'; this.style.transform='translateY(-2px)'"
-                        onmouseout="this.style.background='#000000'; this.style.transform='translateY(0)'">
-                    <span>🔍</span>
-                    <span>Validate Another Order</span>
-                </button>
-            </div>
         </div>
+        
+        ${addBottomActionButton('validation')}
     `;
     
     addMessage(validationHtml, false);
@@ -752,17 +828,9 @@ function displaySecurityResults(result) {
                     </ul>
                 </div>` : ''
             }
-            
-            <div style="margin-top: 25px; text-align: center;">
-                <button onclick="goBackToForm('security')" 
-                        style="background: #000000; color: #ffffff; border: 1px solid #333; padding: 12px 24px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; font-size: 1rem; font-weight: 600; transition: all 0.2s;"
-                        onmouseover="this.style.background='#333333'; this.style.transform='translateY(-2px)'"
-                        onmouseout="this.style.background='#000000'; this.style.transform='translateY(0)'">
-                    <span>🛡️</span>
-                    <span>Analyze Another Issue</span>
-                </button>
-            </div>
         </div>
+        
+        ${addBottomActionButton('security')}
     `;
     
     addMessage(securityHtml, false);
@@ -840,12 +908,24 @@ function removeLoadingMessage() {
     }
 }
 
+// Updated formatJiraResponse with back button
 function formatJiraResponse(data) {
     if (!data.issues || data.issues.length === 0) {
-        return '<div class="error-message">No issues found for your query.</div>';
+        return `
+            ${addBackButton('jira')}
+            <div class="error-message">No issues found for your query.</div>
+            ${addBottomActionButton('jira')}
+        `;
     }
 
-    let html = `<div style="margin-bottom: 15px;"><strong>Found ${data.total} issue(s):</strong></div>`;
+    let html = `
+        ${addBackButton('jira')}
+        
+        <div style="margin-bottom: 20px; padding: 15px; background: #1a1a1a; border-radius: 8px; border: 1px solid #444;">
+            <strong style="color: #00ff88; font-size: 1.1rem;">🎯 Search Results: Found ${data.total} issue(s)</strong>
+            ${data.total > 10 ? `<p style="color: #cccccc; margin-top: 8px; margin-bottom: 0;">Showing first 10 results</p>` : ''}
+        </div>
+    `;
     
     data.issues.slice(0, 10).forEach(issue => {
         const fields = issue.fields;
@@ -863,24 +943,32 @@ function formatJiraResponse(data) {
                     ${fields.priority ? `<span>⚡ ${fields.priority.name}</span>` : ''}
                     <span>📅 ${formatDate(fields.created)}</span>
                 </div>
-                ${fields.description ? `<div style="margin-top: 10px; color: #5e6c84; font-size: 0.9rem;">${fields.description.substring(0, 200)}${fields.description.length > 200 ? '...' : ''}</div>` : ''}
+                ${fields.description ? `<div style="margin-top: 10px; color: #cccccc; font-size: 0.9rem; line-height: 1.4;">${fields.description.substring(0, 200)}${fields.description.length > 200 ? '...' : ''}</div>` : ''}
             </div>
         `;
     });
 
     if (data.total > 10) {
-        html += `<div style="text-align: center; color: #5e6c84; margin-top: 15px;">... and ${data.total - 10} more issues</div>`;
+        html += `
+            <div style="text-align: center; margin: 20px 0; padding: 15px; background: #1a1a1a; border-radius: 8px; border: 1px solid #444;">
+                <span style="color: #ffaa00; font-weight: 600;">... and ${data.total - 10} more issues</span>
+                <p style="color: #cccccc; margin-top: 8px; margin-bottom: 0; font-size: 0.9rem;">Refine your search query to see more specific results</p>
+            </div>
+        `;
     }
+    
+    // Add bottom action buttons
+    html += addBottomActionButton('jira', `Found ${data.total} issues`);
 
     return html;
 }
 
 function getStatusClass(status) {
     const statusLower = status.toLowerCase();
-    if (statusLower.includes('progress') || statusLower.includes('development')) {
+    if (statusLower.includes('progress') || statusLower.includes('development') || statusLower.includes('review')) {
         return 'progress';
     }
-    if (statusLower.includes('done') || statusLower.includes('closed') || statusLower.includes('resolved')) {
+    if (statusLower.includes('done') || statusLower.includes('closed') || statusLower.includes('resolved') || statusLower.includes('complete')) {
         return 'done';
     }
     return 'todo';
@@ -906,8 +994,30 @@ async function sendQuery() {
 
     console.log('Query:', query);
 
-    // Add user message
-    addMessage(query, true);
+    // Add user message with back button context
+    const userMessageHtml = `
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
+            <div style="max-width: 70%; padding: 15px 20px; border-radius: 18px; font-size: 0.95rem; line-height: 1.5; background: #000000; color: white; border-bottom-right-radius: 6px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <span style="font-size: 0.8rem; opacity: 0.8;">💬 Your Question:</span>
+                </div>
+                ${query}
+            </div>
+        </div>
+    `;
+    
+    // Remove welcome message and add user message
+    const chatContainer = document.getElementById('chatContainer');
+    if (chatContainer) {
+        const welcomeMessage = chatContainer.querySelector('.welcome-message');
+        if (welcomeMessage) {
+            welcomeMessage.remove();
+        }
+        chatContainer.insertAdjacentHTML('beforeend', userMessageHtml);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+    
+    // Clear input and reset height
     queryInput.value = '';
     queryInput.style.height = 'auto';
     
@@ -932,15 +1042,27 @@ async function sendQuery() {
         removeLoadingMessage();
 
         if (result.success) {
-            addMessage(formatJiraResponse(result.data), false);
+            // Use the updated formatJiraResponse that includes back buttons
+            const jiraResponseHtml = formatJiraResponse(result.data);
+            addMessage(jiraResponseHtml, false);
         } else {
-            addMessage(`<div class="error-message">Error: ${result.error}</div>`, false);
+            const errorHtml = `
+                ${addBackButton('jira')}
+                <div class="error-message">Error: ${result.error}</div>
+                ${addBottomActionButton('jira')}
+            `;
+            addMessage(errorHtml, false);
         }
         
     } catch (error) {
         console.error('Query error:', error);
         removeLoadingMessage();
-        addMessage(`<div class="error-message">Network Error: ${error.message}</div>`, false);
+        const networkErrorHtml = `
+            ${addBackButton('jira')}
+            <div class="error-message">Network Error: ${error.message}</div>
+            ${addBottomActionButton('jira')}
+        `;
+        addMessage(networkErrorHtml, false);
     } finally {
         sendButton.disabled = false;
     }
@@ -1040,4 +1162,33 @@ if (typeof module !== 'undefined' && module.exports) {
         testConnections,
         debugOrderValidation
     };
+}
+
+// Helper function to add message without back button (for internal use)
+function addMessageSimple(content, isUser, isLoading = false) {
+    const chatContainer = document.getElementById('chatContainer');
+    if (!chatContainer) {
+        console.error('Chat container not found');
+        return null;
+    }
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${isUser ? 'user' : 'assistant'}`;
+    
+    if (isLoading) {
+        messageDiv.innerHTML = `
+            <div class="message-content loading">
+                <div class="loading-spinner"></div>
+                Processing your request...
+            </div>
+        `;
+        messageDiv.id = 'loadingMessage';
+    } else {
+        messageDiv.innerHTML = `<div class="message-content">${content}</div>`;
+    }
+    
+    chatContainer.appendChild(messageDiv);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+    
+    return messageDiv;
 }
