@@ -21,20 +21,20 @@
             <!-- Header Content -->
             <div class="header-content">
                 <h1>🤖 Jira AI Assistant</h1>
-                <p>AI-powered Jira queries with Oracle DB order validation</p>
+                <p>AI-powered Jira queries with Oracle DB order validation & Log Analysis</p>
             </div>
         </div>
 
         <div class="status-bar">
             <div class="status-indicator"></div>
-            <span>✅ Connected to Jira & Oracle DB - Ready to process your queries</span>
+            <span>✅ Connected to Jira, Oracle DB & Elasticsearch - Ready to process your queries</span>
         </div>
 
         <div class="main-content">
             <div class="chat-container" id="chatContainer">
                 <div class="welcome-message">
                     <h2>Welcome to your Enhanced Jira AI Assistant! 👋</h2>
-                    <p>Your Jira and Oracle DB connections are configured and ready. Choose your operation:</p>
+                    <p>Your Jira, Oracle DB, and Elasticsearch connections are configured and ready. Choose your operation:</p>
                     
                     <div class="feature-tabs">
                         <button class="tab-button active" onclick="showTab('jira')">
@@ -45,6 +45,9 @@
                         </button>
                         <button class="tab-button" onclick="showTab('security')">
                             🛡️ Security Analysis
+                        </button>
+                        <button class="tab-button" onclick="showTab('logs')">
+                            📊 Log Analysis
                         </button>
                     </div>
 
@@ -97,6 +100,42 @@
                             <button class="analyze-button" onclick="analyzeIssueSecurity()">
                                 🛡️ Analyze Security Impact
                             </button>
+                        </div>
+                    </div>
+
+                    <div class="tab-content hidden" id="logs-tab">
+                        <h3>Log Analysis Options</h3>
+                        <div class="log-analysis-options">
+                            <div class="log-option" onclick="showLogForm('3d-secure')">
+                                <div class="log-option-icon">🔐</div>
+                                <h4>3D Secure</h4>
+                                <p>Analyze 3D Secure authentication logs and transactions</p>
+                            </div>
+                            <div class="log-option" onclick="showLogForm('enforce-xml6')">
+                                <div class="log-option-icon">📋</div>
+                                <h4>Enforce XML6</h4>
+                                <p>Review XML6 enforcement logs and compliance data</p>
+                            </div>
+                            <div class="log-option" onclick="showLogForm('full-auth')">
+                                <div class="log-option-icon">🔑</div>
+                                <h4>Full Auth</h4>
+                                <p>Examine full authentication flow logs and results</p>
+                            </div>
+                            <div class="log-option" onclick="showLogForm('payment-gateway')">
+                                <div class="log-option-icon">💳</div>
+                                <h4>Payment Gateway</h4>
+                                <p>Analyze payment gateway transaction logs</p>
+                            </div>
+                            <div class="log-option" onclick="showLogForm('fraud-detection')">
+                                <div class="log-option-icon">🚨</div>
+                                <h4>Fraud Detection</h4>
+                                <p>Review fraud detection system logs and alerts</p>
+                            </div>
+                            <div class="log-option" onclick="showLogForm('api-gateway')">
+                                <div class="log-option-icon">🌐</div>
+                                <h4>API Gateway</h4>
+                                <p>Monitor API gateway access and performance logs</p>
+                            </div>
                         </div>
                     </div>
                 </div>
