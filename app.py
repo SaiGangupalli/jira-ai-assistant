@@ -54,6 +54,7 @@ def create_app():
     jira_service = None
     security_service = None
     order_validator = None
+    elasticsearch_service = None
     
     try:
         from config.settings import Config
@@ -67,6 +68,16 @@ def create_app():
                 jira_service = JiraService()
                 security_service = SecurityService()
                 order_validator = OrderValidator()
+
+                # Try to initialize Elasticsearch service
+                try:
+                    from services.elasticsearch_service import ElasticsearchService
+                    elasticsearch_service = ElasticsearchService()
+                    logger.info("Elasticsearch service initialized successfully")
+                except Exception as es_error:
+                    logger.warning(f"Elasticsearch service initialization failed: {es_error}")
+                    elasticsearch_service = None
+                    
                 logger.info("All services initialized successfully")
             except Exception as e:
                 logger.error(f"Failed to initialize services: {e}")
@@ -321,6 +332,103 @@ def create_app():
         return jsonify({'error': 'Internal server error'}), 500
     
     return app
+
+# Add this to app.py - Elasticsearch log search API endpoint
+
+@app.route('/api/search-logs', methods=['POST'])
+def api_search_logs():
+        """API endpoint for Elasticsearch log analysis"""
+        
+        if not elasticsearch_service:
+            return jsonify({
+                'success': False,
+                'error': 'Elasticsearch service not available. Please check Elasticsearch configuration.'
+            }), 503
+            
+        try:
+            data = request.get_json()
+            
+            # Validate required fields
+            if not data or not data.get('log_type') or not data.get('session_id'):
+                return jsonify({
+                    'success': False,
+                    'error': 'Missing required fields: log_type and session_id'
+                }), 400
+            
+            log_type = str(data['log_type']).strip()
+            session_id = str(data['session_id']).strip()
+            
+            # Extract optional filters
+            filters = {
+                'time_range': data.get('time_range', '24h'),
+                'log_level': data.get('log_level', 'all'),
+                'max_results': int(data.get('max_results', 100)),
+                'component': data.get('component'),
+            }
+            
+            # Add log-type specific filters
+            log_specific_filters = [
+                'transaction_id', 'merchant_id', 'xml_version', 'validation_status',
+                'user_id', 'auth_method', 'payment_id', 'gateway', 'risk_score',
+                'decision', 'api_endpoint', 'http_method'
+            ]
+            
+            for filter_name in log_specific_filters:
+                if data.get(filter_name):
+                    filters[filter_name] = str(data[filter_name]).strip()
+            
+            # Search logs using Elasticsearch service
+            result = elasticsearch_service.search_logs(log_type, session_id, **filters)
+            
+            return jsonify(result)
+            
+        except Exception as e:
+            logger.error(f"Log search API error: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Log search failed: {str(e)}'
+            }), 500
+
+@app.route('/api/elasticsearch-health', methods=['GET'])
+def elasticsearch_health():
+        """Check Elasticsearch connection health"""
+        if not elasticsearch_service:
+            return jsonify({
+                'success': False,
+                'error': 'Elasticsearch service not available'
+            }), 503
+            
+        try:
+            result = elasticsearch_service.test_connection()
+            return jsonify(result)
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500    
+
+@app.route('/api/log-components/<log_type>', methods=['GET'])
+def get_log_components(log_type):
+        """Get available components for a log type"""
+        if not elasticsearch_service:
+            return jsonify({
+                'success': False,
+                'error': 'Elasticsearch service not available'
+            }), 503
+            
+        try:
+            components = elasticsearch_service.get_available_components(log_type)
+            return jsonify({
+                'success': True,
+                'log_type': log_type,
+                'components': components
+            })
+        except Exception as e:
+            logger.error(f"Error getting components for {log_type}: {e}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
 
 if __name__ == '__main__':
     app = create_app()
