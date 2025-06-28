@@ -265,73 +265,81 @@ def create_app():
             }), 500
     
     @app.route('/api/health', methods=['GET'])
-    def health_check():
-        """Health check endpoint"""
-        status = {
-            'status': 'healthy',
-            'timestamp': datetime.now().isoformat(),
-            'services': {
-                'jira_service': jira_service is not None,
-                'security_service': security_service is not None,
-                'order_validator': order_validator is not None
-            }
+def health_check():
+    """Health check endpoint"""
+    status = {
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat(),
+        'services': {
+            'jira_service': jira_service is not None,
+            'security_service': security_service is not None,
+            'order_validator': order_validator is not None,
+            'elasticsearch_service': elasticsearch_service is not None
         }
+    }
+    
+    try:
+        from config.settings import Config
+        status.update({
+            'jira_configured': bool(Config.JIRA_URL and Config.JIRA_USERNAME and Config.JIRA_TOKEN),
+            'openai_configured': bool(Config.OPENAI_API_KEY),
+            'oracle_configured': bool(Config.ORACLE_DSN and Config.ORACLE_USER),
+            'elasticsearch_configured': bool(Config.ELASTICSEARCH_HOST and Config.ELASTICSEARCH_USERNAME)
+        })
         
+        # Add log analysis configuration info
+        log_info = Config.get_log_analysis_info()
+        status['log_analysis'] = log_info
+        
+    except:
+        status.update({
+            'jira_configured': False,
+            'openai_configured': False,
+            'oracle_configured': False,
+            'elasticsearch_configured': False,
+            'config_error': 'Configuration module not available'
+        })
+        
+    return jsonify(status)
+
+# Replace the existing test_connections function with this updated version:
+
+@app.route('/api/test-connections', methods=['GET'])
+def test_connections():
+    """Test all service connections"""
+    results = {}
+    
+    # Test Jira connection
+    if jira_service:
         try:
-            from config.settings import Config
-            status.update({
-                'jira_configured': bool(Config.JIRA_URL and Config.JIRA_USERNAME and Config.JIRA_TOKEN),
-                'openai_configured': bool(Config.OPENAI_API_KEY),
-                'oracle_configured': bool(Config.ORACLE_DSN and Config.ORACLE_USER)
-            })
-        except:
-            status.update({
-                'jira_configured': False,
-                'openai_configured': False,
-                'oracle_configured': False,
-                'config_error': 'Configuration module not available'
-            })
-            
-        return jsonify(status)
+            jira_result = jira_service.test_connection()
+            results['jira'] = jira_result
+        except Exception as e:
+            results['jira'] = {'success': False, 'error': str(e)}
+    else:
+        results['jira'] = {'success': False, 'error': 'Service not initialized'}
     
-    @app.route('/api/test-connections', methods=['GET'])
-    def test_connections():
-        """Test all service connections"""
-        results = {}
-        
-        # Test Jira connection
-        if jira_service:
-            try:
-                jira_result = jira_service.test_connection()
-                results['jira'] = jira_result
-            except Exception as e:
-                results['jira'] = {'success': False, 'error': str(e)}
-        else:
-            results['jira'] = {'success': False, 'error': 'Service not initialized'}
-        
-        # Test Oracle connection
-        if order_validator:
-            try:
-                oracle_result = order_validator.test_connection()
-                results['oracle'] = oracle_result
-            except Exception as e:
-                results['oracle'] = {'success': False, 'error': str(e)}
-        else:
-            results['oracle'] = {'success': False, 'error': 'Service not initialized'}
-        
-        return jsonify(results)
+    # Test Oracle connection
+    if order_validator:
+        try:
+            oracle_result = order_validator.test_connection()
+            results['oracle'] = oracle_result
+        except Exception as e:
+            results['oracle'] = {'success': False, 'error': str(e)}
+    else:
+        results['oracle'] = {'success': False, 'error': 'Service not initialized'}
     
-    # Error handlers
-    @app.errorhandler(404)
-    def not_found_error(error):
-        return jsonify({'error': 'Not found'}), 404
+    # Test Elasticsearch connection
+    if elasticsearch_service:
+        try:
+            elasticsearch_result = elasticsearch_service.test_connection()
+            results['elasticsearch'] = elasticsearch_result
+        except Exception as e:
+            results['elasticsearch'] = {'success': False, 'error': str(e)}
+    else:
+        results['elasticsearch'] = {'success': False, 'error': 'Service not initialized'}
     
-    @app.errorhandler(500)
-    def internal_error(error):
-        logger.error(f"Internal server error: {error}")
-        return jsonify({'error': 'Internal server error'}), 500
-    
-    return app
+    return jsonify(results)
 
 # Add this to app.py - Elasticsearch log search API endpoint
 
