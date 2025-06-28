@@ -1909,3 +1909,740 @@ function goBackToLogAnalysis() {
         showTab('logs');
     }
 }
+
+// Updated JavaScript functions to display logs in tabular format
+// Replace the existing displayLogResults and formatLogEntry functions in main.js
+
+function displayLogResults(result) {
+    console.log('Displaying log results in tabular format:', result);
+    
+    const logConfig = getLogConfig(result.log_type);
+    
+    // Create comprehensive log results display with table format
+    let logResultsHtml = `
+        ${addBackButton('logs')}
+        
+        <div class="log-results">
+            <div class="log-results-header">
+                <h3>
+                    <span>${logConfig.icon}</span>
+                    <span>${logConfig.display_name} Results</span>
+                </h3>
+                <div class="log-results-count">${result.total_hits} logs found</div>
+            </div>
+            
+            <div style="margin-bottom: 20px; padding: 15px; background: #1a1a1a; border-radius: 8px; border: 1px solid #444;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; font-size: 0.9rem;">
+                    <div><strong style="color: #00ff88;">Session ID:</strong> <span style="color: #ffffff; font-family: monospace;">${result.session_id}</span></div>
+                    <div><strong style="color: #ffaa00;">Time Range:</strong> <span style="color: #ffffff;">${formatTimeRange(result.filters_applied.time_range)}</span></div>
+                    <div><strong style="color: #88ccff;">Log Level:</strong> <span style="color: #ffffff;">${result.filters_applied.log_level || 'All'}</span></div>
+                    <div><strong style="color: #ff88cc;">Search Time:</strong> <span style="color: #ffffff;">${result.search_time_ms}ms</span></div>
+                </div>
+            </div>
+    `;
+    
+    if (result.total_hits === 0) {
+        logResultsHtml += `
+            <div style="text-align: center; padding: 40px; background: #1a1a1a; border-radius: 12px; border: 1px solid #444;">
+                <div style="font-size: 3rem; margin-bottom: 15px;">🔍</div>
+                <h3 style="color: #ffffff; margin-bottom: 10px;">No Logs Found</h3>
+                <p style="color: #cccccc; margin-bottom: 20px;">No logs were found matching your search criteria.</p>
+                <div style="color: #888888; font-size: 0.9rem;">
+                    <p>Try adjusting your search parameters:</p>
+                    <ul style="text-align: left; display: inline-block; margin-top: 10px;">
+                        <li>Extend the time range</li>
+                        <li>Change the log level filter</li>
+                        <li>Verify the session ID format</li>
+                        <li>Remove optional filters</li>
+                    </ul>
+                </div>
+            </div>
+        `;
+    } else {
+        // Display logs in table format
+        logResultsHtml += createLogTable(result.results, result.log_type);
+        
+        // Add pagination info if needed
+        if (result.total_hits > result.results.length) {
+            logResultsHtml += `
+                <div style="text-align: center; margin: 20px 0; padding: 15px; background: #1a1a1a; border-radius: 8px; border: 1px solid #444;">
+                    <span style="color: #ffaa00; font-weight: 600;">
+                        Showing ${result.results.length} of ${result.total_hits} total logs
+                    </span>
+                    <p style="color: #cccccc; margin-top: 8px; margin-bottom: 0; font-size: 0.9rem;">
+                        Increase max results or refine search criteria to see more
+                    </p>
+                </div>
+            `;
+        }
+    }
+    
+    logResultsHtml += `
+        </div>
+        ${addBottomActionButton('logs', `Found ${result.total_hits} logs`)}
+    `;
+    
+    addMessage(logResultsHtml, false);
+    
+    // Add search/filter functionality after the table is rendered
+    if (result.total_hits > 0) {
+        setTimeout(() => {
+            addTableSearchFilter();
+        }, 100);
+    }
+}
+
+function createLogTable(logEntries, logType) {
+    if (!logEntries || logEntries.length === 0) {
+        return '<p style="color: #cccccc;">No log entries to display.</p>';
+    }
+    
+    // Define columns based on log type
+    const tableConfig = getTableConfig(logType);
+    
+    let tableHtml = `
+        <div class="log-table-container" style="overflow-x: auto; margin: 20px 0;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; background: #1a1a1a; border: 1px solid #444; border-radius: 8px; overflow: hidden; min-width: 800px;">
+                <thead>
+                    <tr style="background: linear-gradient(135deg, #333333, #555555);">
+                        ${tableConfig.columns.map((col, index) => 
+                            `<th class="log-sortable-header ${col.mobileHide ? 'mobile-hide' : ''}" 
+                                onclick="sortLogTable(${index})" 
+                                style="border: 1px solid #555; padding: 12px; text-align: left; font-weight: 600; color: #ffffff; white-space: nowrap; cursor: pointer; user-select: none; position: relative; padding-right: 25px;"
+                                title="Click to sort by ${col.header}">
+                                ${col.header}
+                                <span style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-size: 0.8rem; opacity: 0.6;">↕️</span>
+                            </th>`
+                        ).join('')}
+                        <th style="border: 1px solid #555; padding: 12px; text-align: center; font-weight: 600; color: #ffffff; width: 80px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="log-table-body">
+    `;
+    
+    logEntries.forEach((logEntry, index) => {
+        const bgColor = index % 2 === 0 ? '#2d2d30' : '#1a1a1a';
+        const levelClass = logEntry.level ? `log-level-${logEntry.level.toLowerCase()}` : '';
+        
+        tableHtml += `
+            <tr class="${levelClass}" style="background: ${bgColor}; transition: background-color 0.2s;" 
+                onmouseover="this.style.background='#333333'" 
+                onmouseout="this.style.background='${bgColor}'"
+                data-log-index="${index}">
+        `;
+        
+        // Add data cells based on column configuration
+        tableConfig.columns.forEach((col, colIndex) => {
+            const cellValue = formatCellValue(logEntry, col.field, col.type);
+            const cellStyle = getCellStyle(col.type, logEntry[col.field]);
+            
+            tableHtml += `
+                <td class="${col.mobileHide ? 'mobile-hide' : ''}" 
+                    style="border: 1px solid #444; padding: 10px; vertical-align: top; ${cellStyle} max-width: ${col.maxWidth || '200px'}; word-break: break-word;"
+                    data-sort-value="${getSortValue(logEntry[col.field], col.type)}">
+                    ${cellValue}
+                </td>
+            `;
+        });
+        
+        // Add actions cell
+        tableHtml += `
+            <td style="border: 1px solid #444; padding: 10px; text-align: center; vertical-align: middle;">
+                <button class="log-action-btn" onclick="toggleLogDetails('${index}')" 
+                        style="background: #333; color: #fff; border: 1px solid #555; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; transition: all 0.2s; display: inline-flex; align-items: center; gap: 4px;"
+                        onmouseover="this.style.background='#444'" 
+                        onmouseout="this.style.background='#333'"
+                        title="View detailed log data">
+                    <span id="toggle-icon-${index}">👁️</span>
+                    <span class="mobile-hide">Details</span>
+                </button>
+            </td>
+        `;
+        
+        tableHtml += '</tr>';
+        
+        // Add hidden detail row with enhanced styling
+        tableHtml += `
+            <tr id="log-details-row-${index}" style="display: none; background: #1a1a1a;">
+                <td colspan="${tableConfig.columns.length + 1}" style="border: 1px solid #444; padding: 0;">
+                    <div class="log-detail-section" style="padding: 15px; background: linear-gradient(135deg, #1a1a1a, #2d2d30); border-top: 2px solid #333;">
+                        <div class="log-detail-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                            <div class="log-detail-item" style="background: rgba(255, 255, 255, 0.05); padding: 12px; border-radius: 6px; border: 1px solid #333;">
+                                <strong style="color: #ffaa00; display: block; margin-bottom: 8px; font-size: 0.9rem;">📝 Full Message:</strong>
+                                <div style="color: #ffffff; padding: 10px; background: #2d2d30; border-radius: 6px; font-family: monospace; white-space: pre-wrap; max-height: 150px; overflow-y: auto; font-size: 0.85rem; line-height: 1.4; border: 1px solid #444;">
+${escapeHtml(logEntry.message || 'No message available')}
+                                </div>
+                            </div>
+                            <div class="log-detail-item" style="background: rgba(255, 255, 255, 0.05); padding: 12px; border-radius: 6px; border: 1px solid #333;">
+                                <strong style="color: #ffaa00; display: block; margin-bottom: 8px; font-size: 0.9rem;">ℹ️ Log Details:</strong>
+                                <div style="color: #cccccc; font-size: 0.85rem; line-height: 1.5;">
+                                    <div style="margin-bottom: 6px;"><strong style="color: #88ccff;">Entry ID:</strong> <span style="font-family: monospace;">${logEntry.id || 'N/A'}</span></div>
+                                    <div style="margin-bottom: 6px;"><strong style="color: #88ccff;">Component:</strong> ${logEntry.component || 'N/A'}</div>
+                                    <div style="margin-bottom: 6px;"><strong style="color: #88ccff;">Session ID:</strong> <span style="font-family: monospace;">${logEntry.session_id || 'N/A'}</span></div>
+                                    <div><strong style="color: #88ccff;">Full Timestamp:</strong> ${formatFullTimestamp(logEntry.timestamp)}</div>
+                                </div>
+                            </div>
+                        </div>
+                        ${createLogTypeSpecificDetails(logEntry, logType)}
+                        ${logEntry.raw_data ? `
+                            <div style="margin-top: 15px;">
+                                <strong style="color: #ffaa00; display: block; margin-bottom: 8px; font-size: 0.9rem;">🔍 Raw Log Data:</strong>
+                                <div class="log-raw-data" style="background: #2d2d30; border: 1px solid #444; border-radius: 6px; padding: 12px; font-family: 'Courier New', monospace; font-size: 0.8rem; color: #cccccc; white-space: pre-wrap; max-height: 300px; overflow-y: auto; line-height: 1.4;">
+${JSON.stringify(logEntry.raw_data, null, 2)}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+    
+    tableHtml += `
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="log-table-info" style="display: flex; justify-content: space-between; align-items: center; margin: 15px 0; padding: 10px 15px; background: #1a1a1a; border-radius: 6px; border: 1px solid #444; font-size: 0.9rem;">
+            <div class="log-count" style="color: #00ff88; font-weight: 600;">
+                📊 Displaying ${logEntries.length} log entries
+            </div>
+            <div class="log-timing" style="color: #888888;">
+                💡 Click column headers to sort • Click 👁️ to view details
+            </div>
+        </div>
+    `;
+    
+    return tableHtml;
+}
+
+// Add sorting functionality
+let currentSortColumn = -1;
+let currentSortDirection = 'asc';
+
+function sortLogTable(columnIndex) {
+    const tableBody = document.getElementById('log-table-body');
+    if (!tableBody) return;
+    
+    const rows = Array.from(tableBody.querySelectorAll('tr:not([id*="log-details-row"])'));
+    
+    // Toggle sort direction if same column clicked
+    if (currentSortColumn === columnIndex) {
+        currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSortDirection = 'asc';
+        currentSortColumn = columnIndex;
+    }
+    
+    // Update header indicators
+    document.querySelectorAll('.log-sortable-header').forEach((header, index) => {
+        header.classList.remove('sorted-asc', 'sorted-desc');
+        const indicator = header.querySelector('span');
+        if (indicator) {
+            if (index === columnIndex) {
+                indicator.textContent = currentSortDirection === 'asc' ? '↑' : '↓';
+                indicator.style.opacity = '1';
+                indicator.style.color = '#00ff88';
+                header.classList.add(`sorted-${currentSortDirection}`);
+            } else {
+                indicator.textContent = '↕️';
+                indicator.style.opacity = '0.6';
+                indicator.style.color = '';
+            }
+        }
+    });
+    
+    // Sort rows
+    rows.sort((a, b) => {
+        const aCells = a.querySelectorAll('td');
+        const bCells = b.querySelectorAll('td');
+        
+        if (columnIndex >= aCells.length || columnIndex >= bCells.length) return 0;
+        
+        const aValue = aCells[columnIndex].getAttribute('data-sort-value') || aCells[columnIndex].textContent.trim();
+        const bValue = bCells[columnIndex].getAttribute('data-sort-value') || bCells[columnIndex].textContent.trim();
+        
+        // Try numeric comparison first
+        const aNum = parseFloat(aValue);
+        const bNum = parseFloat(bValue);
+        
+        if (!isNaN(aNum) && !isNaN(bNum)) {
+            return currentSortDirection === 'asc' ? aNum - bNum : bNum - aNum;
+        }
+        
+        // String comparison
+        const comparison = aValue.localeCompare(bValue);
+        return currentSortDirection === 'asc' ? comparison : -comparison;
+    });
+    
+    // Reorder rows in DOM and update their detail rows
+    const detailRows = [];
+    rows.forEach((row, index) => {
+        const logIndex = row.getAttribute('data-log-index');
+        const detailRow = document.getElementById(`log-details-row-${logIndex}`);
+        if (detailRow) {
+            detailRows.push({ row, detailRow, originalIndex: logIndex });
+        }
+    });
+    
+    // Clear and repopulate table body
+    tableBody.innerHTML = '';
+    
+    detailRows.forEach(({ row, detailRow }) => {
+        // Update row colors for new positions
+        const newIndex = Array.from(tableBody.children).length / 2;
+        const bgColor = newIndex % 2 === 0 ? '#2d2d30' : '#1a1a1a';
+        row.style.background = bgColor;
+        row.setAttribute('onmouseout', `this.style.background='${bgColor}'`);
+        
+        tableBody.appendChild(row);
+        tableBody.appendChild(detailRow);
+    });
+}
+
+function getSortValue(value, type) {
+    if (value === null || value === undefined || value === '') {
+        return '';
+    }
+    
+    switch (type) {
+        case 'timestamp':
+            return new Date(value).getTime() || 0;
+        case 'level':
+            const levelOrder = { 'error': 4, 'warn': 3, 'info': 2, 'debug': 1 };
+            return levelOrder[value.toLowerCase()] || 0;
+        case 'risk_score':
+        case 'duration':
+        case 'http_status':
+            return parseFloat(value) || 0;
+        default:
+            return value.toString().toLowerCase();
+    }
+}
+
+function getTableConfig(logType) {
+    const baseColumns = [
+        { field: 'timestamp', header: 'Timestamp', type: 'timestamp', maxWidth: '140px', mobileHide: false },
+        { field: 'level', header: 'Level', type: 'level', maxWidth: '80px', mobileHide: false },
+        { field: 'message', header: 'Message', type: 'message', maxWidth: '300px', mobileHide: false }
+    ];
+    
+    const logTypeColumns = {
+        '3d-secure': [
+            ...baseColumns,
+            { field: 'transaction_id', header: 'Transaction ID', type: 'code', maxWidth: '150px', mobileHide: true },
+            { field: 'auth_status', header: 'Auth Status', type: 'status', maxWidth: '100px', mobileHide: false },
+            { field: 'card_number', header: 'Card', type: 'masked', maxWidth: '120px', mobileHide: true },
+            { field: 'merchant_id', header: 'Merchant', type: 'code', maxWidth: '100px', mobileHide: true }
+        ],
+        'full-auth': [
+            ...baseColumns,
+            { field: 'user_id', header: 'User ID', type: 'code', maxWidth: '120px', mobileHide: true },
+            { field: 'auth_method', header: 'Auth Method', type: 'text', maxWidth: '100px', mobileHide: true },
+            { field: 'auth_result', header: 'Result', type: 'status', maxWidth: '100px', mobileHide: false },
+            { field: 'ip_address', header: 'IP Address', type: 'ip', maxWidth: '120px', mobileHide: true }
+        ],
+        'payment-gateway': [
+            ...baseColumns,
+            { field: 'payment_id', header: 'Payment ID', type: 'code', maxWidth: '150px', mobileHide: true },
+            { field: 'amount', header: 'Amount', type: 'currency', maxWidth: '100px', mobileHide: false },
+            { field: 'currency', header: 'Currency', type: 'text', maxWidth: '80px', mobileHide: true },
+            { field: 'gateway_response', header: 'Gateway Response', type: 'status', maxWidth: '120px', mobileHide: false }
+        ],
+        'fraud-detection': [
+            ...baseColumns,
+            { field: 'risk_score', header: 'Risk Score', type: 'risk_score', maxWidth: '100px', mobileHide: false },
+            { field: 'decision', header: 'Decision', type: 'status', maxWidth: '100px', mobileHide: false },
+            { field: 'fraud_indicators', header: 'Indicators', type: 'array', maxWidth: '150px', mobileHide: true }
+        ],
+        'api-gateway': [
+            ...baseColumns,
+            { field: 'http_method', header: 'Method', type: 'http_method', maxWidth: '80px', mobileHide: false },
+            { field: 'api_endpoint', header: 'Endpoint', type: 'url', maxWidth: '200px', mobileHide: true },
+            { field: 'status_code', header: 'Status', type: 'http_status', maxWidth: '80px', mobileHide: false },
+            { field: 'response_time', header: 'Response Time', type: 'duration', maxWidth: '100px', mobileHide: true }
+        ],
+        'enforce-xml6': [
+            ...baseColumns,
+            { field: 'xml_version', header: 'XML Version', type: 'text', maxWidth: '100px', mobileHide: true },
+            { field: 'validation_status', header: 'Validation', type: 'status', maxWidth: '100px', mobileHide: false }
+        ]
+    };
+    
+    return {
+        columns: logTypeColumns[logType] || baseColumns
+    };
+}
+
+// Add export functionality for log tables
+function exportLogTable(format = 'csv') {
+    const table = document.querySelector('.log-results table');
+    if (!table) {
+        showAlert('No log table found to export');
+        return;
+    }
+    
+    const headers = Array.from(table.querySelectorAll('thead th:not(:last-child)')).map(th => th.textContent.trim());
+    const rows = Array.from(table.querySelectorAll('tbody tr:not([id*="log-details-row"])'));
+    
+    if (format === 'csv') {
+        exportToCSV(headers, rows);
+    } else if (format === 'json') {
+        exportToJSON(headers, rows);
+    }
+}
+
+function exportToCSV(headers, rows) {
+    let csvContent = headers.join(',') + '\n';
+    
+    rows.forEach(row => {
+        const cells = Array.from(row.querySelectorAll('td:not(:last-child)'));
+        const rowData = cells.map(cell => {
+            // Clean cell content and escape quotes
+            let content = cell.textContent.trim().replace(/"/g, '""');
+            // Remove emoji and special characters for CSV
+            content = content.replace(/[^\w\s\-.,;:]/g, '');
+            return `"${content}"`;
+        });
+        csvContent += rowData.join(',') + '\n';
+    });
+    
+    downloadFile(csvContent, 'log_export.csv', 'text/csv');
+}
+
+function exportToJSON(headers, rows) {
+    const data = rows.map(row => {
+        const cells = Array.from(row.querySelectorAll('td:not(:last-child)'));
+        const rowObj = {};
+        headers.forEach((header, index) => {
+            if (cells[index]) {
+                rowObj[header] = cells[index].textContent.trim();
+            }
+        });
+        return rowObj;
+    });
+    
+    const jsonContent = JSON.stringify(data, null, 2);
+    downloadFile(jsonContent, 'log_export.json', 'application/json');
+}
+
+function downloadFile(content, filename, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+// Add search/filter functionality for tables
+function addTableSearchFilter() {
+    const logResults = document.querySelector('.log-results');
+    if (!logResults) return;
+    
+    const searchHtml = `
+        <div style="margin: 15px 0; padding: 15px; background: #1a1a1a; border-radius: 8px; border: 1px solid #444;">
+            <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center;">
+                <div>
+                    <input type="text" id="table-search" placeholder="Search logs..." 
+                           style="width: 100%; padding: 8px 12px; border: 1px solid #555; border-radius: 6px; background: #2d2d30; color: #fff; font-size: 0.9rem;"
+                           oninput="filterLogTable(this.value)">
+                </div>
+                <div>
+                    <select id="level-filter" onchange="filterLogTable()" 
+                            style="padding: 8px 12px; border: 1px solid #555; border-radius: 6px; background: #2d2d30; color: #fff; font-size: 0.9rem;">
+                        <option value="">All Levels</option>
+                        <option value="error">Error</option>
+                        <option value="warn">Warning</option>
+                        <option value="info">Info</option>
+                        <option value="debug">Debug</option>
+                    </select>
+                </div>
+                <div>
+                    <button onclick="exportLogTable('csv')" 
+                            style="background: #333; color: #fff; border: 1px solid #555; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; margin-right: 5px;"
+                            title="Export as CSV">
+                        📊 CSV
+                    </button>
+                    <button onclick="exportLogTable('json')" 
+                            style="background: #333; color: #fff; border: 1px solid #555; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.9rem;"
+                            title="Export as JSON">
+                        📄 JSON
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    const tableContainer = logResults.querySelector('.log-table-container');
+    if (tableContainer) {
+        tableContainer.insertAdjacentHTML('beforebegin', searchHtml);
+    }
+}
+
+function filterLogTable(searchTerm) {
+    const table = document.querySelector('.log-results table');
+    const levelFilter = document.getElementById('level-filter');
+    if (!table) return;
+    
+    const rows = table.querySelectorAll('tbody tr:not([id*="log-details-row"])');
+    const detailRows = table.querySelectorAll('tbody tr[id*="log-details-row"]');
+    
+    const searchLower = searchTerm ? searchTerm.toLowerCase() : '';
+    const levelFilterValue = levelFilter ? levelFilter.value.toLowerCase() : '';
+    
+    let visibleCount = 0;
+    
+    rows.forEach((row, index) => {
+        const cells = row.querySelectorAll('td');
+        const rowText = Array.from(cells).map(cell => cell.textContent.toLowerCase()).join(' ');
+        const levelCell = cells[1]; // Assuming level is the second column
+        const rowLevel = levelCell ? levelCell.textContent.toLowerCase().trim() : '';
+        
+        const matchesSearch = !searchLower || rowText.includes(searchLower);
+        const matchesLevel = !levelFilterValue || rowLevel.includes(levelFilterValue);
+        
+        const shouldShow = matchesSearch && matchesLevel;
+        
+        if (shouldShow) {
+            row.style.display = '';
+            visibleCount++;
+            // Update row background color based on new position
+            const bgColor = (visibleCount - 1) % 2 === 0 ? '#2d2d30' : '#1a1a1a';
+            row.style.background = bgColor;
+            row.setAttribute('onmouseout', `this.style.background='${bgColor}'`);
+        } else {
+            row.style.display = 'none';
+            // Hide corresponding detail row if it's open
+            const logIndex = row.getAttribute('data-log-index');
+            const detailRow = document.getElementById(`log-details-row-${logIndex}`);
+            if (detailRow) {
+                detailRow.style.display = 'none';
+            }
+        }
+    });
+    
+    // Update table info
+    const tableInfo = document.querySelector('.log-table-info .log-count');
+    if (tableInfo) {
+        const totalRows = rows.length;
+        if (visibleCount === totalRows) {
+            tableInfo.innerHTML = `📊 Displaying ${totalRows} log entries`;
+        } else {
+            tableInfo.innerHTML = `📊 Displaying ${visibleCount} of ${totalRows} log entries (filtered)`;
+        }
+    }
+}
+            ...baseColumns,
+            { field: 'risk_score', header: 'Risk Score', type: 'risk_score', maxWidth: '100px', mobileHide: false },
+            { field: 'decision', header: 'Decision', type: 'status', maxWidth: '100px', mobileHide: false },
+            { field: 'fraud_indicators', header: 'Indicators', type: 'array', maxWidth: '150px', mobileHide: true }
+        ],
+        'api-gateway': [
+            ...baseColumns,
+            { field: 'http_method', header: 'Method', type: 'http_method', maxWidth: '80px', mobileHide: false },
+            { field: 'api_endpoint', header: 'Endpoint', type: 'url', maxWidth: '200px', mobileHide: true },
+            { field: 'status_code', header: 'Status', type: 'http_status', maxWidth: '80px', mobileHide: false },
+            { field: 'response_time', header: 'Response Time', type: 'duration', maxWidth: '100px', mobileHide: true }
+        ],
+        'enforce-xml6': [
+            ...baseColumns,
+            { field: 'xml_version', header: 'XML Version', type: 'text', maxWidth: '100px', mobileHide: true },
+            { field: 'validation_status', header: 'Validation', type: 'status', maxWidth: '100px', mobileHide: false }
+        ]
+    };
+    
+    return {
+        columns: logTypeColumns[logType] || baseColumns
+    };
+}
+            ...baseColumns,
+            { field: 'risk_score', header: 'Risk Score', type: 'risk_score', maxWidth: '100px' },
+            { field: 'decision', header: 'Decision', type: 'status', maxWidth: '100px' },
+            { field: 'fraud_indicators', header: 'Indicators', type: 'array', maxWidth: '150px' }
+        ],
+        'api-gateway': [
+            ...baseColumns,
+            { field: 'http_method', header: 'Method', type: 'http_method', maxWidth: '80px' },
+            { field: 'api_endpoint', header: 'Endpoint', type: 'url', maxWidth: '200px' },
+            { field: 'status_code', header: 'Status', type: 'http_status', maxWidth: '80px' },
+            { field: 'response_time', header: 'Response Time', type: 'duration', maxWidth: '100px' }
+        ],
+        'enforce-xml6': [
+            ...baseColumns,
+            { field: 'xml_version', header: 'XML Version', type: 'text', maxWidth: '100px' },
+            { field: 'validation_status', header: 'Validation', type: 'status', maxWidth: '100px' }
+        ]
+    };
+    
+    return {
+        columns: logTypeColumns[logType] || baseColumns
+    };
+}
+
+function formatCellValue(logEntry, field, type) {
+    const value = logEntry[field];
+    
+    if (value === null || value === undefined || value === '') {
+        return '<span style="color: #666; font-style: italic;">-</span>';
+    }
+    
+    switch (type) {
+        case 'timestamp':
+            return formatLogTimestamp(value);
+            
+        case 'level':
+            const levelClass = value.toLowerCase();
+            const levelColors = {
+                'error': '#ff4444',
+                'warn': '#ffaa00',
+                'info': '#0066cc',
+                'debug': '#888888'
+            };
+            const levelColor = levelColors[levelClass] || '#cccccc';
+            return `<span style="background: ${levelColor}20; color: ${levelColor}; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; border: 1px solid ${levelColor};">${value}</span>`;
+            
+        case 'message':
+            const truncatedMessage = value.length > 100 ? value.substring(0, 100) + '...' : value;
+            return `<span style="color: #ffffff;" title="${escapeHtml(value)}">${escapeHtml(truncatedMessage)}</span>`;
+            
+        case 'status':
+            const statusColor = getStatusColor(value);
+            return `<span style="background: ${statusColor}20; color: ${statusColor}; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; border: 1px solid ${statusColor};">${value}</span>`;
+            
+        case 'code':
+            return `<span style="font-family: monospace; color: #88ccff; background: #1a1a2d; padding: 4px 6px; border-radius: 4px;">${value}</span>`;
+            
+        case 'masked':
+            return `<span style="font-family: monospace; color: #ffaa88;">${value}</span>`;
+            
+        case 'currency':
+            return `<span style="color: #00ff88; font-weight: 600;">${value}</span>`;
+            
+        case 'risk_score':
+            const riskColor = value >= 75 ? '#ff4444' : value >= 50 ? '#ffaa00' : '#00ff88';
+            return `<span style="color: ${riskColor}; font-weight: 600;">${value}/100</span>`;
+            
+        case 'http_method':
+            const methodColor = getHttpMethodColor(value);
+            return `<span style="background: ${methodColor}20; color: ${methodColor}; padding: 4px 8px; border-radius: 6px; font-weight: 600;">${value}</span>`;
+            
+        case 'http_status':
+            const statusColor2 = getHttpStatusColor(value);
+            return `<span style="color: ${statusColor2}; font-weight: 600;">${value}</span>`;
+            
+        case 'duration':
+            const timeColor = value > 1000 ? '#ff4444' : value > 500 ? '#ffaa00' : '#00ff88';
+            return `<span style="color: ${timeColor}; font-weight: 600;">${value}ms</span>`;
+            
+        case 'array':
+            if (Array.isArray(value)) {
+                const displayValue = value.length > 3 ? `${value.slice(0, 3).join(', ')}... (+${value.length - 3})` : value.join(', ');
+                return `<span style="color: #ffffff;" title="${value.join(', ')}">${displayValue}</span>`;
+            }
+            return `<span style="color: #ffffff;">${value}</span>`;
+            
+        case 'url':
+            const truncatedUrl = value.length > 50 ? value.substring(0, 50) + '...' : value;
+            return `<span style="font-family: monospace; color: #88ccff;" title="${value}">${truncatedUrl}</span>`;
+            
+        case 'ip':
+            return `<span style="font-family: monospace; color: #ccff88;">${value}</span>`;
+            
+        default:
+            return `<span style="color: #ffffff;">${escapeHtml(String(value))}</span>`;
+    }
+}
+
+function getCellStyle(type, value) {
+    switch (type) {
+        case 'timestamp':
+            return 'font-family: monospace; color: #00ff88;';
+        case 'message':
+            return 'line-height: 1.4;';
+        case 'code':
+        case 'masked':
+        case 'ip':
+        case 'url':
+            return '';
+        default:
+            return '';
+    }
+}
+
+function getStatusColor(status) {
+    const statusLower = status.toLowerCase();
+    if (statusLower.includes('success') || statusLower.includes('approved') || statusLower.includes('valid')) {
+        return '#00ff88';
+    }
+    if (statusLower.includes('error') || statusLower.includes('failed') || statusLower.includes('denied')) {
+        return '#ff4444';
+    }
+    if (statusLower.includes('warning') || statusLower.includes('pending')) {
+        return '#ffaa00';
+    }
+    return '#888888';
+}
+
+function createLogTypeSpecificDetails(logEntry, logType) {
+    let detailsHtml = '<div style="margin-top: 15px;"><strong style="color: #ffaa00;">Additional Details:</strong><div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 10px; font-size: 0.9rem;">';
+    
+    switch (logType) {
+        case '3d-secure':
+            if (logEntry.response_code) detailsHtml += `<div><strong>Response Code:</strong> <span style="color: #fff;">${logEntry.response_code}</span></div>`;
+            break;
+        case 'full-auth':
+            if (logEntry.failure_reason) detailsHtml += `<div><strong>Failure Reason:</strong> <span style="color: #ff6666;">${logEntry.failure_reason}</span></div>`;
+            if (logEntry.user_agent) detailsHtml += `<div><strong>User Agent:</strong> <span style="color: #ccc; font-family: monospace; font-size: 0.8rem;">${logEntry.user_agent}</span></div>`;
+            break;
+        case 'payment-gateway':
+            if (logEntry.processing_time) detailsHtml += `<div><strong>Processing Time:</strong> <span style="color: #fff;">${logEntry.processing_time}ms</span></div>`;
+            break;
+        case 'fraud-detection':
+            if (logEntry.rules_triggered && logEntry.rules_triggered.length > 0) {
+                detailsHtml += `<div><strong>Rules Triggered:</strong> <span style="color: #ffaa00;">${logEntry.rules_triggered.join(', ')}</span></div>`;
+            }
+            break;
+        case 'api-gateway':
+            if (logEntry.request_size) detailsHtml += `<div><strong>Request Size:</strong> <span style="color: #fff;">${formatBytes(logEntry.request_size)}</span></div>`;
+            if (logEntry.response_size) detailsHtml += `<div><strong>Response Size:</strong> <span style="color: #fff;">${formatBytes(logEntry.response_size)}</span></div>`;
+            break;
+    }
+    
+    detailsHtml += '</div></div>';
+    return detailsHtml;
+}
+
+function toggleLogDetails(index) {
+    const detailsRow = document.getElementById(`log-details-row-${index}`);
+    const toggleIcon = document.getElementById(`toggle-icon-${index}`);
+    
+    if (detailsRow.style.display === 'none') {
+        detailsRow.style.display = 'table-row';
+        toggleIcon.textContent = '🔽';
+    } else {
+        detailsRow.style.display = 'none';
+        toggleIcon.textContent = '👁️';
+    }
+}
+
+function formatFullTimestamp(timestamp) {
+    if (!timestamp) return 'Unknown';
+    try {
+        const date = new Date(timestamp);
+        return date.toLocaleString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            timeZoneName: 'short'
+        });
+    } catch {
+        return timestamp;
+    }
+}
