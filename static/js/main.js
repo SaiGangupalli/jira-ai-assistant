@@ -378,8 +378,117 @@ function formatOrderDataAsTable(orderData) {
     return tableHtml;
 }
 
-// Updated displayValidationResults function - Show all data in mandatory fields table only
+// Add back button functionality
+function addBackButton(tabName) {
+    return `
+        <div style="margin-bottom: 20px;">
+            <button onclick="goBackToForm('${tabName}')" 
+                    style="background: #333333; color: #ffffff; border: 1px solid #555; padding: 10px 20px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 0.9rem; transition: all 0.2s;"
+                    onmouseover="this.style.background='#444444'; this.style.transform='translateY(-1px)'"
+                    onmouseout="this.style.background='#333333'; this.style.transform='translateY(0)'">
+                <span>←</span>
+                <span>Back to ${tabName === 'validation' ? 'Order Validation' : 'Security Analysis'}</span>
+            </button>
+        </div>
+    `;
+}
 
+// Function to go back to the form
+function goBackToForm(tabName) {
+    // Clear the chat container and restore the welcome message
+    const chatContainer = document.getElementById('chatContainer');
+    if (chatContainer) {
+        // Create the welcome message content
+        const welcomeContent = `
+            <div class="welcome-message">
+                <h2>Welcome to your Enhanced Jira AI Assistant! 👋</h2>
+                <p>Your Jira and Oracle DB connections are configured and ready. Choose your operation:</p>
+                
+                <div class="feature-tabs">
+                    <button class="tab-button ${currentTab === 'jira' ? 'active' : ''}" onclick="showTab('jira')">
+                        📋 Jira Queries
+                    </button>
+                    <button class="tab-button ${currentTab === 'validation' ? 'active' : ''}" onclick="showTab('validation')">
+                        🔍 Order Validation
+                    </button>
+                    <button class="tab-button ${currentTab === 'security' ? 'active' : ''}" onclick="showTab('security')">
+                        🛡️ Security Analysis
+                    </button>
+                </div>
+
+                <div class="tab-content ${currentTab === 'jira' ? '' : 'hidden'}" id="jira-tab">
+                    <h3>Jira Query Examples</h3>
+                    <div class="example-queries">
+                        <div class="example-query" onclick="useExampleQuery(this)">
+                            <h4>📋 Find Stories by Assignee</h4>
+                            <p>Show me all stories assigned to John Smith</p>
+                        </div>
+                        <div class="example-query" onclick="useExampleQuery(this)">
+                            <h4>🐛 Search by Issue Type</h4>
+                            <p>Find all bugs in the DEV project</p>
+                        </div>
+                        <div class="example-query" onclick="useExampleQuery(this)">
+                            <h4>📈 Status Filtering</h4>
+                            <p>What are the open epics for this sprint?</p>
+                        </div>
+                        <div class="example-query" onclick="useExampleQuery(this)">
+                            <h4>📅 Date Range Queries</h4>
+                            <p>Show me stories created in the last week</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-content ${currentTab === 'validation' ? '' : 'hidden'}" id="validation-tab">
+                    <h3>Order Validation</h3>
+                    <div class="validation-form">
+                        <div class="form-group">
+                            <label for="orderNumber">Order Number:</label>
+                            <input type="text" id="orderNumber" placeholder="e.g., ORD-123456, ORDER_789" maxlength="20">
+                        </div>
+                        <div class="form-group">
+                            <label for="locationCode">Location Code:</label>
+                            <input type="text" id="locationCode" placeholder="e.g., NYC, LA, CHI" maxlength="5">
+                        </div>
+                        <button class="validate-button" onclick="validateOrder()">
+                            🔍 Validate Order
+                        </button>
+                    </div>
+                </div>
+
+                <div class="tab-content ${currentTab === 'security' ? '' : 'hidden'}" id="security-tab">
+                    <h3>Security Impact Analysis</h3>
+                    <div class="security-form">
+                        <div class="form-group">
+                            <label for="issueKey">Issue Key:</label>
+                            <input type="text" id="issueKey" placeholder="e.g., PROJ-123, DEV-456" maxlength="20">
+                        </div>
+                        <button class="analyze-button" onclick="analyzeIssueSecurity()">
+                            🛡️ Analyze Security Impact
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        chatContainer.innerHTML = welcomeContent;
+        
+        // Make sure the correct tab is shown and input visibility is set
+        showTab(tabName);
+        
+        // Clear form inputs
+        if (tabName === 'validation') {
+            const orderNumber = document.getElementById('orderNumber');
+            const locationCode = document.getElementById('locationCode');
+            if (orderNumber) orderNumber.value = '';
+            if (locationCode) locationCode.value = '';
+        } else if (tabName === 'security') {
+            const issueKey = document.getElementById('issueKey');
+            if (issueKey) issueKey.value = '';
+        }
+    }
+}
+
+// Updated displayValidationResults with back button
 function displayValidationResults(result) {
     console.log('Displaying validation results:', result);
     
@@ -555,6 +664,8 @@ function displayValidationResults(result) {
     }
     
     const validationHtml = `
+        ${addBackButton('validation')}
+        
         <div class="validation-result ${statusClass}">
             <div class="validation-header">
                 <h3 style="display: flex; align-items: center; gap: 10px;">
@@ -585,10 +696,76 @@ function displayValidationResults(result) {
                 </p>
             </div>
             ${fieldsHtml}
+            
+            <div style="margin-top: 25px; text-align: center;">
+                <button onclick="goBackToForm('validation')" 
+                        style="background: #000000; color: #ffffff; border: 1px solid #333; padding: 12px 24px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; font-size: 1rem; font-weight: 600; transition: all 0.2s;"
+                        onmouseover="this.style.background='#333333'; this.style.transform='translateY(-2px)'"
+                        onmouseout="this.style.background='#000000'; this.style.transform='translateY(0)'">
+                    <span>🔍</span>
+                    <span>Validate Another Order</span>
+                </button>
+            </div>
         </div>
     `;
     
     addMessage(validationHtml, false);
+}
+
+// Updated displaySecurityResults with back button
+function displaySecurityResults(result) {
+    console.log('Displaying security results:', result);
+    
+    const riskClass = result.risk_level ? `risk-${result.risk_level.toLowerCase()}` : 'risk-medium';
+    const riskColors = {
+        'risk-low': '#00ff88',
+        'risk-medium': '#ffaa00',
+        'risk-high': '#ff4444',
+        'risk-critical': '#ff0000'
+    };
+    const riskColor = riskColors[riskClass] || '#888888';
+    
+    const securityHtml = `
+        ${addBackButton('security')}
+        
+        <div class="security-result">
+            <h3 style="color: #ffffff; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                <span>🛡️</span>
+                <span>Security Analysis: ${result.issue_key}</span>
+                ${result.risk_level ? 
+                    `<span style="display: inline-block; padding: 6px 12px; border-radius: 15px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; margin-left: 10px; background: ${riskColor}20; color: ${riskColor}; border: 1px solid ${riskColor};">${result.risk_level}</span>` : ''
+                }
+            </h3>
+            
+            <div style="background: #1a1a1a; border: 1px solid #444; padding: 20px; border-radius: 12px; white-space: pre-line; line-height: 1.6; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);">
+                ${result.analysis}
+            </div>
+            
+            ${result.recommendations && result.recommendations.length > 0 ?
+                `<div style="background: linear-gradient(135deg, #332200, #554400); border: 1px solid #ffaa00; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(255, 170, 0, 0.2);">
+                    <strong style="color: #ffaa00; display: flex; align-items: center; gap: 8px; margin-bottom: 15px; font-size: 1.1rem;">
+                        <span>🎯</span>
+                        <span>Recommendations:</span>
+                    </strong>
+                    <ul style="margin: 0; padding-left: 20px; color: #ffffff;">
+                        ${result.recommendations.map(rec => `<li style="margin: 8px 0; line-height: 1.4;">${rec}</li>`).join('')}
+                    </ul>
+                </div>` : ''
+            }
+            
+            <div style="margin-top: 25px; text-align: center;">
+                <button onclick="goBackToForm('security')" 
+                        style="background: #000000; color: #ffffff; border: 1px solid #333; padding: 12px 24px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; font-size: 1rem; font-weight: 600; transition: all 0.2s;"
+                        onmouseover="this.style.background='#333333'; this.style.transform='translateY(-2px)'"
+                        onmouseout="this.style.background='#000000'; this.style.transform='translateY(0)'">
+                    <span>🛡️</span>
+                    <span>Analyze Another Issue</span>
+                </button>
+            </div>
+        </div>
+    `;
+    
+    addMessage(securityHtml, false);
 }
 
 // Enhanced field name formatting
@@ -620,46 +797,6 @@ function formatFieldName(fieldName) {
         .split('_')
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ');
-}
-
-
-function displaySecurityResults(result) {
-    console.log('Displaying security results:', result);
-    
-    const riskClass = result.risk_level ? `risk-${result.risk_level.toLowerCase()}` : 'risk-medium';
-    const riskColors = {
-        'risk-low': '#36b37e',
-        'risk-medium': '#ff8b00',
-        'risk-high': '#ff5630',
-        'risk-critical': '#de350b'
-    };
-    const riskColor = riskColors[riskClass] || '#5e6c84';
-    
-    const securityHtml = `
-        <div class="security-result">
-            <h3 style="color: #0052cc; margin-bottom: 20px;">
-                🛡️ Security Analysis: ${result.issue_key}
-                ${result.risk_level ? 
-                    `<span style="display: inline-block; padding: 4px 12px; border-radius: 15px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; margin-left: 10px; background: ${riskColor}20; color: ${riskColor};">${result.risk_level}</span>` : ''
-                }
-            </h3>
-            
-            <div style="background: #f8f9ff; padding: 20px; border-radius: 8px; white-space: pre-line; line-height: 1.6; margin-bottom: 20px;">
-                ${result.analysis}
-            </div>
-            
-            ${result.recommendations && result.recommendations.length > 0 ?
-                `<div style="background: #fff4e6; padding: 15px; border-radius: 8px;">
-                    <strong>🎯 Recommendations:</strong>
-                    <ul style="margin-top: 10px; padding-left: 20px;">
-                        ${result.recommendations.map(rec => `<li style="margin: 5px 0;">${rec}</li>`).join('')}
-                    </ul>
-                </div>` : ''
-            }
-        </div>
-    `;
-    
-    addMessage(securityHtml, false);
 }
 
 function addMessage(content, isUser, isLoading = false) {
