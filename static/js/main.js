@@ -379,7 +379,7 @@ function formatOrderDataAsTable(orderData) {
     return tableHtml;
 }
 
-unction addBackButton(context, extraInfo = '') {
+function addBackButton(context, extraInfo = '') {
     let buttonText = '';
     let icon = '';
     
@@ -391,6 +391,10 @@ unction addBackButton(context, extraInfo = '') {
         case 'security':
             buttonText = 'Back to Security Analysis';
             icon = '🛡️';
+            break;
+        case 'logs':
+            buttonText = 'Back to Log Analysis';
+            icon = '📊';
             break;
         case 'jira':
             buttonText = 'Back to Home';
@@ -418,7 +422,6 @@ unction addBackButton(context, extraInfo = '') {
     `;
 }
 
-// Enhanced function to go back to different contexts
 function goBackToForm(context) {
     // Clear the chat container and restore the welcome message
     const chatContainer = document.getElementById('chatContainer');
@@ -427,7 +430,7 @@ function goBackToForm(context) {
         const welcomeContent = `
             <div class="welcome-message">
                 <h2>Welcome to your Enhanced Jira AI Assistant! 👋</h2>
-                <p>Your Jira and Oracle DB connections are configured and ready. Choose your operation:</p>
+                <p>Your Jira, Oracle DB, and Elasticsearch connections are configured and ready. Choose your operation:</p>
                 
                 <div class="feature-tabs">
                     <button class="tab-button ${context === 'jira' ? 'active' : ''}" onclick="showTab('jira')">
@@ -438,6 +441,9 @@ function goBackToForm(context) {
                     </button>
                     <button class="tab-button ${context === 'security' ? 'active' : ''}" onclick="showTab('security')">
                         🛡️ Security Analysis
+                    </button>
+                    <button class="tab-button ${context === 'logs' ? 'active' : ''}" onclick="showTab('logs')">
+                        📊 Log Analysis
                     </button>
                 </div>
 
@@ -492,6 +498,42 @@ function goBackToForm(context) {
                         </button>
                     </div>
                 </div>
+
+                <div class="tab-content ${context === 'logs' ? '' : 'hidden'}" id="logs-tab">
+                    <h3>Log Analysis Options</h3>
+                    <div class="log-analysis-options">
+                        <div class="log-option" onclick="showLogForm('3d-secure')">
+                            <div class="log-option-icon">🔐</div>
+                            <h4>3D Secure</h4>
+                            <p>Analyze 3D Secure authentication logs and transactions</p>
+                        </div>
+                        <div class="log-option" onclick="showLogForm('enforce-xml6')">
+                            <div class="log-option-icon">📋</div>
+                            <h4>Enforce XML6</h4>
+                            <p>Review XML6 enforcement logs and compliance data</p>
+                        </div>
+                        <div class="log-option" onclick="showLogForm('full-auth')">
+                            <div class="log-option-icon">🔑</div>
+                            <h4>Full Auth</h4>
+                            <p>Examine full authentication flow logs and results</p>
+                        </div>
+                        <div class="log-option" onclick="showLogForm('payment-gateway')">
+                            <div class="log-option-icon">💳</div>
+                            <h4>Payment Gateway</h4>
+                            <p>Analyze payment gateway transaction logs</p>
+                        </div>
+                        <div class="log-option" onclick="showLogForm('fraud-detection')">
+                            <div class="log-option-icon">🚨</div>
+                            <h4>Fraud Detection</h4>
+                            <p>Review fraud detection system logs and alerts</p>
+                        </div>
+                        <div class="log-option" onclick="showLogForm('api-gateway')">
+                            <div class="log-option-icon">🌐</div>
+                            <h4>API Gateway</h4>
+                            <p>Monitor API gateway access and performance logs</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         `;
         
@@ -500,7 +542,7 @@ function goBackToForm(context) {
         // Make sure the correct tab is shown and input visibility is set
         showTab(context);
         
-        // Clear form inputs and query input
+        // Clear form inputs and query input based on context
         if (context === 'validation') {
             const orderNumber = document.getElementById('orderNumber');
             const locationCode = document.getElementById('locationCode');
@@ -516,13 +558,14 @@ function goBackToForm(context) {
                 queryInput.style.height = 'auto';
             }
         }
+        // Note: 'logs' context doesn't need form clearing since it shows option selection
         
         // Update current tab
         currentTab = context;
     }
 }
 
-// Function to add bottom action buttons for different contexts
+// Update the addBottomActionButton function to handle logs context:
 function addBottomActionButton(context, resultInfo = '') {
     let buttonText = '';
     let icon = '';
@@ -538,6 +581,11 @@ function addBottomActionButton(context, resultInfo = '') {
             buttonText = 'Analyze Another Issue';
             icon = '🛡️';
             action = `goBackToForm('security')`;
+            break;
+        case 'logs':
+            buttonText = 'Search More Logs';
+            icon = '📊';
+            action = `goBackToForm('logs')`;
             break;
         case 'jira':
             buttonText = 'Ask Another Question';
