@@ -378,6 +378,8 @@ function formatOrderDataAsTable(orderData) {
     return tableHtml;
 }
 
+// Updated displayValidationResults function - Show all data in mandatory fields table only
+
 function displayValidationResults(result) {
     console.log('Displaying validation results:', result);
     
@@ -385,17 +387,17 @@ function displayValidationResults(result) {
     const statusText = result.is_valid ? 'VALID' : 'INVALID';
     const statusIcon = result.is_valid ? '✅' : '❌';
     
-    // Create mandatory fields validation table
+    // Create comprehensive mandatory fields validation table with ALL data
     let fieldsHtml = '';
     if (result.mandatory_fields) {
         fieldsHtml = `
-            <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9rem;">
+            <table style="width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.9rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);">
                 <thead>
-                    <tr style="background: linear-gradient(135deg, #ff8b00, #ffb366); color: white;">
-                        <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">Field Name</th>
-                        <th style="border: 1px solid #ddd; padding: 10px; text-align: center;">Type</th>
-                        <th style="border: 1px solid #ddd; padding: 10px; text-align: center;">Status</th>
-                        <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">Value</th>
+                    <tr style="background: linear-gradient(135deg, #333333, #555555); color: white;">
+                        <th style="border: 1px solid #555; padding: 12px; text-align: left; font-weight: 600; width: 25%;">Field Name</th>
+                        <th style="border: 1px solid #555; padding: 12px; text-align: center; font-weight: 600; width: 10%;">Type</th>
+                        <th style="border: 1px solid #555; padding: 12px; text-align: center; font-weight: 600; width: 8%;">Status</th>
+                        <th style="border: 1px solid #555; padding: 12px; text-align: left; font-weight: 600; width: 57%;">Value</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -403,38 +405,75 @@ function displayValidationResults(result) {
         
         result.mandatory_fields.forEach((field, index) => {
             const fieldIcon = field.is_valid ? '✅' : '❌';
-            const bgColor = index % 2 === 0 ? '#f8f9fa' : '#ffffff';
-            const statusColor = field.is_valid ? '#00875a' : '#de350b';
-            const fieldType = field.is_mandatory ? 'Mandatory' : 'Optional';
-            const typeColor = field.is_mandatory ? '#ff8b00' : '#5e6c84';
+            const bgColor = index % 2 === 0 ? '#2d2d30' : '#1a1a1a';
+            const statusColor = field.is_valid ? '#00ff88' : '#ff4444';
+            const fieldType = field.is_mandatory ? 'Required' : 'Optional';
+            const typeColor = field.is_mandatory ? '#ffaa00' : '#888888';
             
-            // Format the field value for display
-            let displayValue = 'Empty';
-            if (field.field_value !== null && field.field_value !== undefined && field.field_value !== '') {
-                displayValue = field.field_value;
+            // Format the field value for display with enhanced formatting
+            let displayValue = '';
+            let valueStyle = '';
+            
+            if (field.field_value === null || field.field_value === undefined || field.field_value === '') {
+                displayValue = '<em style="color: #ff4444; font-style: italic;">Empty / Not Set</em>';
+                valueStyle = 'color: #ff4444;';
+            } else {
+                let rawValue = field.field_value;
                 
-                // Apply formatting based on field name
+                // Apply special formatting based on field name/type
                 if (field.field_name.toLowerCase().includes('amount') || field.field_name.toLowerCase().includes('price')) {
-                    displayValue = formatCurrency(displayValue);
+                    displayValue = formatCurrency(rawValue);
+                    valueStyle = 'color: #00ff88; font-weight: 600;';
                 } else if (field.field_name.toLowerCase().includes('date')) {
-                    displayValue = formatDate(displayValue);
-                } else if (typeof displayValue === 'string' && displayValue.length > 50) {
-                    displayValue = displayValue.substring(0, 50) + '...';
+                    displayValue = formatDate(rawValue);
+                    valueStyle = 'color: #88ccff; font-weight: 500;';
+                } else if (field.field_name.toLowerCase().includes('email')) {
+                    displayValue = rawValue;
+                    valueStyle = 'color: #ffaa88; font-family: monospace;';
+                } else if (field.field_name.toLowerCase().includes('phone')) {
+                    displayValue = rawValue;
+                    valueStyle = 'color: #ffaa88; font-family: monospace;';
+                } else if (field.field_name.toLowerCase().includes('id')) {
+                    displayValue = rawValue;
+                    valueStyle = 'color: #cccccc; font-family: monospace; font-weight: 600;';
+                } else if (field.field_name.toLowerCase().includes('status')) {
+                    displayValue = `<span style="background: #333; padding: 4px 8px; border-radius: 12px; color: #00ff88; font-weight: 600; text-transform: uppercase;">${rawValue}</span>`;
+                    valueStyle = '';
+                } else if (field.field_name.toLowerCase().includes('address')) {
+                    displayValue = rawValue;
+                    valueStyle = 'color: #cccccc; line-height: 1.4;';
+                } else if (field.field_name.toLowerCase().includes('code')) {
+                    displayValue = `<span style="background: #1a1a1a; padding: 4px 8px; border-radius: 6px; color: #ffaa00; font-family: monospace; font-weight: 600;">${rawValue}</span>`;
+                    valueStyle = '';
+                } else {
+                    // Default formatting for other fields
+                    displayValue = rawValue;
+                    valueStyle = 'color: #ffffff;';
+                    
+                    // Truncate very long text values
+                    if (typeof displayValue === 'string' && displayValue.length > 100) {
+                        displayValue = displayValue.substring(0, 100) + '<span style="color: #888;">... <em>(truncated)</em></span>';
+                    }
                 }
             }
             
             fieldsHtml += `
-                <tr style="background: ${bgColor};">
-                    <td style="border: 1px solid #e0e6ff; padding: 10px; font-weight: 600;">${formatFieldName(field.field_name)}</td>
-                    <td style="border: 1px solid #e0e6ff; padding: 10px; text-align: center;">
-                        <span style="background: ${typeColor}20; color: ${typeColor}; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: 600;">
+                <tr style="background: ${bgColor}; transition: background-color 0.2s;" onmouseover="this.style.background='#333333'" onmouseout="this.style.background='${bgColor}'">
+                    <td style="border: 1px solid #444; padding: 12px; font-weight: 600; color: #ffffff; vertical-align: top;">
+                        ${formatFieldName(field.field_name)}
+                        ${field.field_name !== formatFieldName(field.field_name) ? 
+                            `<br><small style="color: #888; font-weight: normal; font-family: monospace;">${field.field_name}</small>` : ''
+                        }
+                    </td>
+                    <td style="border: 1px solid #444; padding: 12px; text-align: center; vertical-align: middle;">
+                        <span style="background: ${typeColor}20; color: ${typeColor}; padding: 6px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; white-space: nowrap;">
                             ${fieldType}
                         </span>
                     </td>
-                    <td style="border: 1px solid #e0e6ff; padding: 10px; text-align: center; color: ${statusColor}; font-size: 1.2rem;">
+                    <td style="border: 1px solid #444; padding: 12px; text-align: center; color: ${statusColor}; font-size: 1.3rem; vertical-align: middle;">
                         ${fieldIcon}
                     </td>
-                    <td style="border: 1px solid #e0e6ff; padding: 10px; word-break: break-word; color: ${field.field_value ? '#172b4d' : '#de350b'};">
+                    <td style="border: 1px solid #444; padding: 12px; word-break: break-word; vertical-align: top; ${valueStyle}">
                         ${displayValue}
                     </td>
                 </tr>
@@ -447,77 +486,140 @@ function displayValidationResults(result) {
         `;
     }
     
-    // Create validation summary
+    // Create enhanced validation summary with more details
     let summaryHtml = '';
     if (result.validation_summary) {
         const summary = result.validation_summary;
+        const completionColor = summary.completion_percentage === 100 ? '#00ff88' : 
+                               summary.completion_percentage >= 80 ? '#ffaa00' : '#ff4444';
+        
         summaryHtml = `
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin: 20px 0;">
-                <div style="background: #e3fcef; border: 1px solid #36b37e; border-radius: 8px; padding: 15px; text-align: center;">
-                    <div style="font-size: 1.5rem; font-weight: bold; color: #00875a;">${summary.total_fields}</div>
-                    <div style="font-size: 0.9rem; color: #006644;">Total Fields</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; margin: 20px 0;">
+                <div style="background: linear-gradient(135deg, #1a1a1a, #2d2d30); border: 1px solid #444; border-radius: 12px; padding: 15px; text-align: center; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);">
+                    <div style="font-size: 1.8rem; font-weight: bold; color: #ffffff;">${summary.total_fields}</div>
+                    <div style="font-size: 0.9rem; color: #cccccc; margin-top: 4px;">Total Fields</div>
                 </div>
-                <div style="background: #fff4e6; border: 1px solid #ff8b00; border-radius: 8px; padding: 15px; text-align: center;">
-                    <div style="font-size: 1.5rem; font-weight: bold; color: #ff8b00;">${summary.mandatory_fields}</div>
-                    <div style="font-size: 0.9rem; color: #cc6f00;">Mandatory</div>
+                <div style="background: linear-gradient(135deg, #332200, #554400); border: 1px solid #ffaa00; border-radius: 12px; padding: 15px; text-align: center; box-shadow: 0 2px 8px rgba(255, 170, 0, 0.2);">
+                    <div style="font-size: 1.8rem; font-weight: bold; color: #ffaa00;">${summary.mandatory_fields}</div>
+                    <div style="font-size: 0.9rem; color: #cc8800; margin-top: 4px;">Required</div>
                 </div>
-                <div style="background: #e4edff; border: 1px solid #0052cc; border-radius: 8px; padding: 15px; text-align: center;">
-                    <div style="font-size: 1.5rem; font-weight: bold; color: #0052cc;">${summary.optional_fields}</div>
-                    <div style="font-size: 0.9rem; color: #003d99;">Optional</div>
+                <div style="background: linear-gradient(135deg, #1a1a2d, #2d2d40); border: 1px solid #888; border-radius: 12px; padding: 15px; text-align: center; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);">
+                    <div style="font-size: 1.8rem; font-weight: bold; color: #888888;">${summary.optional_fields}</div>
+                    <div style="font-size: 0.9rem; color: #666; margin-top: 4px;">Optional</div>
                 </div>
-                <div style="background: ${summary.completion_percentage === 100 ? '#e3fcef' : '#ffebe6'}; border: 1px solid ${summary.completion_percentage === 100 ? '#36b37e' : '#ff5630'}; border-radius: 8px; padding: 15px; text-align: center;">
-                    <div style="font-size: 1.5rem; font-weight: bold; color: ${summary.completion_percentage === 100 ? '#00875a' : '#de350b'};">${summary.completion_percentage}%</div>
-                    <div style="font-size: 0.9rem; color: ${summary.completion_percentage === 100 ? '#006644' : '#bf2600'};">Complete</div>
+                <div style="background: linear-gradient(135deg, ${completionColor}15, ${completionColor}25); border: 1px solid ${completionColor}; border-radius: 12px; padding: 15px; text-align: center; box-shadow: 0 2px 8px rgba(${completionColor === '#00ff88' ? '0, 255, 136' : completionColor === '#ffaa00' ? '255, 170, 0' : '255, 68, 68'}, 0.2);">
+                    <div style="font-size: 1.8rem; font-weight: bold; color: ${completionColor};">${summary.completion_percentage}%</div>
+                    <div style="font-size: 0.9rem; color: ${completionColor}; margin-top: 4px;">Complete</div>
+                </div>
+                <div style="background: linear-gradient(135deg, #001a00, #002d00); border: 1px solid #00ff88; border-radius: 12px; padding: 15px; text-align: center; box-shadow: 0 2px 8px rgba(0, 255, 136, 0.2);">
+                    <div style="font-size: 1.8rem; font-weight: bold; color: #00ff88;">${summary.filled_mandatory_fields}</div>
+                    <div style="font-size: 0.9rem; color: #00cc66; margin-top: 4px;">Filled</div>
+                </div>
+                <div style="background: linear-gradient(135deg, #2d0000, #330000); border: 1px solid #ff4444; border-radius: 12px; padding: 15px; text-align: center; box-shadow: 0 2px 8px rgba(255, 68, 68, 0.2);">
+                    <div style="font-size: 1.8rem; font-weight: bold; color: #ff4444;">${summary.missing_mandatory_fields}</div>
+                    <div style="font-size: 0.9rem; color: #cc3333; margin-top: 4px;">Missing</div>
                 </div>
             </div>
         `;
     }
     
-    // Generate dynamic order data table
-    const orderDataHtml = result.order_data ? formatOrderDataAsTable(result.order_data) : '';
+    // Enhanced missing fields display
+    let missingFieldsHtml = '';
+    if (result.missing_fields && result.missing_fields.length > 0) {
+        missingFieldsHtml = `
+            <div style="margin-bottom: 20px; padding: 20px; background: linear-gradient(135deg, #2d0000, #330000); border-radius: 12px; border-left: 4px solid #ff4444; box-shadow: 0 2px 8px rgba(255, 68, 68, 0.2);">
+                <div style="display: flex; align-items: center; margin-bottom: 15px;">
+                    <span style="font-size: 1.5rem; margin-right: 10px;">⚠️</span>
+                    <strong style="color: #ff4444; font-size: 1.1rem;">Missing Required Fields (${result.missing_fields.length})</strong>
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    ${result.missing_fields.map(field => 
+                        `<span style="background: #ff444420; border: 1px solid #ff4444; color: #ff6666; padding: 8px 12px; border-radius: 20px; font-size: 0.9rem; font-weight: 500; display: inline-flex; align-items: center;">
+                            <span style="margin-right: 6px;">❌</span>
+                            ${formatFieldName(field)}
+                        </span>`
+                    ).join('')}
+                </div>
+            </div>
+        `;
+    } else {
+        missingFieldsHtml = `
+            <div style="margin-bottom: 20px; padding: 20px; background: linear-gradient(135deg, #001a00, #002d00); border-radius: 12px; border-left: 4px solid #00ff88; box-shadow: 0 2px 8px rgba(0, 255, 136, 0.2);">
+                <div style="display: flex; align-items: center;">
+                    <span style="font-size: 1.5rem; margin-right: 10px;">✅</span>
+                    <strong style="color: #00ff88; font-size: 1.1rem;">All Required Fields Complete!</strong>
+                </div>
+                <p style="color: #00cc66; margin-top: 8px; margin-bottom: 0;">Every mandatory field has been filled with valid data.</p>
+            </div>
+        `;
+    }
     
     const validationHtml = `
         <div class="validation-result ${statusClass}">
             <div class="validation-header">
-                <h3>${statusIcon} Order Validation: ${result.order_number}</h3>
+                <h3 style="display: flex; align-items: center; gap: 10px;">
+                    ${statusIcon} 
+                    <span>Order Validation: ${result.order_number}</span>
+                </h3>
                 <span class="validation-status status-${result.is_valid ? 'valid' : 'invalid'}">
                     ${statusText}
                 </span>
             </div>
             
-            <div style="margin-bottom: 15px;">
-                <strong>Location:</strong> ${result.location_code}
+            <div style="margin-bottom: 20px; padding: 15px; background: #1a1a1a; border-radius: 8px; border: 1px solid #444;">
+                <strong style="color: #ffffff;">📍 Location:</strong> 
+                <span style="color: #ffaa00; font-weight: 600; margin-left: 8px;">${result.location_code}</span>
             </div>
             
             ${summaryHtml}
             
-            ${result.missing_fields && result.missing_fields.length > 0 ? 
-                `<div style="margin-bottom: 15px; padding: 15px; background: #ffebe6; border-radius: 8px; border-left: 4px solid #ff5630;">
-                    <strong style="color: #de350b;">⚠️ Missing Required Fields (${result.missing_fields.length}):</strong><br>
-                    <div style="margin-top: 10px; color: #de350b;">
-                        ${result.missing_fields.map(field => `<span style="background: #ff563020; padding: 4px 8px; border-radius: 12px; margin: 2px; display: inline-block;">${formatFieldName(field)}</span>`).join('')}
-                    </div>
-                </div>` : 
-                `<div style="margin-bottom: 15px; padding: 15px; background: #e3fcef; border-radius: 8px; border-left: 4px solid #36b37e;">
-                    <strong style="color: #00875a;">✅ All Required Fields Complete!</strong>
-                </div>`
-            }
+            ${missingFieldsHtml}
             
             <div style="margin-bottom: 15px;">
-                <strong>📋 Field Validation Details:</strong>
+                <h4 style="color: #ffffff; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                    <span>📋</span>
+                    <span>Complete Field Validation & Data</span>
+                </h4>
+                <p style="color: #cccccc; font-size: 0.9rem; margin-bottom: 15px;">
+                    All order fields with their validation status and current values:
+                </p>
             </div>
             ${fieldsHtml}
-            
-            ${orderDataHtml ? 
-                `<div style="margin-top: 20px; padding: 15px; background: #f8f9ff; border-radius: 8px; border: 1px solid #e0e6ff;">
-                    <strong style="color: #0052cc; font-size: 1.1rem;">📊 Complete Order Data:</strong>
-                    ${orderDataHtml}
-                </div>` : ''
-            }
         </div>
     `;
     
     addMessage(validationHtml, false);
+}
+
+// Enhanced field name formatting
+function formatFieldName(fieldName) {
+    if (!fieldName) return '';
+    
+    // Handle special cases
+    const specialNames = {
+        'order_id': 'Order ID',
+        'customer_id': 'Customer ID',
+        'order_number': 'Order Number',
+        'customer_name': 'Customer Name',
+        'customer_email': 'Customer Email',
+        'customer_phone': 'Customer Phone',
+        'order_date': 'Order Date',
+        'delivery_address': 'Delivery Address',
+        'order_status': 'Order Status',
+        'total_amount': 'Total Amount',
+        'location_code': 'Location Code',
+        'created_date': 'Created Date',
+        'updated_date': 'Updated Date'
+    };
+    
+    if (specialNames[fieldName.toLowerCase()]) {
+        return specialNames[fieldName.toLowerCase()];
+    }
+    
+    return fieldName
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
 }
 
 
