@@ -1488,4 +1488,424 @@ async function searchLogs(logType) {
 
 function displayLogResults(result) {
     console.log('Displaying log results:', result);
+    
+    const logConfig = getLogConfig(result.log_type);
+    
+    // Create comprehensive log results display
+    let logResultsHtml = `
+        ${addBackButton('logs')}
+        
+        <div class="log-results">
+            <div class="log-results-header">
+                <h3>
+                    <span>${logConfig.icon}</span>
+                    <span>${logConfig.display_name} Results</span>
+                </h3>
+                <div class="log-results-count">${result.total_hits} logs found</div>
+            </div>
+            
+            <div style="margin-bottom: 20px; padding: 15px; background: #1a1a1a; border-radius: 8px; border: 1px solid #444;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; font-size: 0.9rem;">
+                    <div><strong style="color: #00ff88;">Session ID:</strong> <span style="color: #ffffff; font-family: monospace;">${result.session_id}</span></div>
+                    <div><strong style="color: #ffaa00;">Time Range:</strong> <span style="color: #ffffff;">${formatTimeRange(result.filters_applied.time_range)}</span></div>
+                    <div><strong style="color: #88ccff;">Log Level:</strong> <span style="color: #ffffff;">${result.filters_applied.log_level || 'All'}</span></div>
+                    <div><strong style="color: #ff88cc;">Search Time:</strong> <span style="color: #ffffff;">${result.search_time_ms}ms</span></div>
+                </div>
+            </div>
+    `;
+    
+    if (result.total_hits === 0) {
+        logResultsHtml += `
+            <div style="text-align: center; padding: 40px; background: #1a1a1a; border-radius: 12px; border: 1px solid #444;">
+                <div style="font-size: 3rem; margin-bottom: 15px;">🔍</div>
+                <h3 style="color: #ffffff; margin-bottom: 10px;">No Logs Found</h3>
+                <p style="color: #cccccc; margin-bottom: 20px;">No logs were found matching your search criteria.</p>
+                <div style="color: #888888; font-size: 0.9rem;">
+                    <p>Try adjusting your search parameters:</p>
+                    <ul style="text-align: left; display: inline-block; margin-top: 10px;">
+                        <li>Extend the time range</li>
+                        <li>Change the log level filter</li>
+                        <li>Verify the session ID format</li>
+                        <li>Remove optional filters</li>
+                    </ul>
+                </div>
+            </div>
+        `;
+    } else {
+        // Display log entries
+        logResultsHtml += '<div class="log-entries">';
+        
+        result.results.forEach((logEntry, index) => {
+            logResultsHtml += formatLogEntry(logEntry, result.log_type, index);
+        });
+        
+        logResultsHtml += '</div>';
+        
+        // Add pagination info if needed
+        if (result.total_hits > result.results.length) {
+            logResultsHtml += `
+                <div style="text-align: center; margin: 20px 0; padding: 15px; background: #1a1a1a; border-radius: 8px; border: 1px solid #444;">
+                    <span style="color: #ffaa00; font-weight: 600;">
+                        Showing ${result.results.length} of ${result.total_hits} total logs
+                    </span>
+                    <p style="color: #cccccc; margin-top: 8px; margin-bottom: 0; font-size: 0.9rem;">
+                        Increase max results or refine search criteria to see more
+                    </p>
+                </div>
+            `;
+        }
+    }
+    
+    logResultsHtml += `
+        </div>
+        ${addBottomActionButton('logs', `Found ${result.total_hits} logs`)}
+    `;
+    
+    addMessage(logResultsHtml, false);
+}
+
+function formatLogEntry(logEntry, logType, index) {
+    const levelClass = logEntry.level ? logEntry.level.toLowerCase() : 'info';
+    const timestamp = formatLogTimestamp(logEntry.timestamp);
+    
+    let specificFieldsHtml = '';
+    
+    // Add log-type specific fields
+    switch(logType) {
+        case '3d-secure':
+            specificFieldsHtml = format3DSecureFields(logEntry);
+            break;
+        case 'full-auth':
+            specificFieldsHtml = formatFullAuthFields(logEntry);
+            break;
+        case 'payment-gateway':
+            specificFieldsHtml = formatPaymentGatewayFields(logEntry);
+            break;
+        case 'fraud-detection':
+            specificFieldsHtml = formatFraudDetectionFields(logEntry);
+            break;
+        case 'api-gateway':
+            specificFieldsHtml = formatApiGatewayFields(logEntry);
+            break;
+        case 'enforce-xml6':
+            specificFieldsHtml = formatEnforceXmlFields(logEntry);
+            break;
+    }
+    
+    const hasRawData = logEntry.raw_data && Object.keys(logEntry.raw_data).length > 0;
+    
+    return `
+        <div class="log-entry" id="log-entry-${index}">
+            <div class="log-entry-header">
+                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <div class="log-timestamp">${timestamp}</div>
+                    <div class="log-level ${levelClass}">${logEntry.level || 'INFO'}</div>
+                    ${logEntry.component ? `<div class="log-component" style="background: #333; color: #fff; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem;">${logEntry.component}</div>` : ''}
+                </div>
+                ${logEntry.session_id ? `<div class="log-session-id">${logEntry.session_id}</div>` : ''}
+            </div>
+            
+            ${logEntry.message ? `
+                <div class="log-message">${escapeHtml(logEntry.message)}</div>
+            ` : ''}
+            
+            ${specificFieldsHtml}
+            
+            ${hasRawData ? `
+                <div style="margin-top: 15px;">
+                    <button class="log-expand-toggle" onclick="toggleLogDetails('${index}')">
+                        <span id="toggle-text-${index}">Show Raw Data</span>
+                    </button>
+                    <div class="log-details" id="log-details-${index}" style="display: none;">
+                        <div class="log-json">${JSON.stringify(logEntry.raw_data, null, 2)}</div>
+                    </div>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// Log-type specific field formatters
+function format3DSecureFields(logEntry) {
+    let fieldsHtml = '';
+    
+    if (logEntry.transaction_id || logEntry.card_number || logEntry.auth_status || logEntry.response_code || logEntry.merchant_id) {
+        fieldsHtml = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin: 10px 0; padding: 15px; background: #2d2d30; border-radius: 8px;">';
+        
+        if (logEntry.transaction_id) {
+            fieldsHtml += `<div><strong style="color: #88ccff;">Transaction:</strong> <span style="color: #fff; font-family: monospace;">${logEntry.transaction_id}</span></div>`;
+        }
+        if (logEntry.card_number) {
+            fieldsHtml += `<div><strong style="color: #ffaa88;">Card:</strong> <span style="color: #fff; font-family: monospace;">${logEntry.card_number}</span></div>`;
+        }
+        if (logEntry.auth_status) {
+            const statusColor = logEntry.auth_status === 'SUCCESS' ? '#00ff88' : '#ff4444';
+            fieldsHtml += `<div><strong style="color: #ffaa00;">Auth Status:</strong> <span style="color: ${statusColor}; font-weight: 600;">${logEntry.auth_status}</span></div>`;
+        }
+        if (logEntry.response_code) {
+            fieldsHtml += `<div><strong style="color: #ff88cc;">Response:</strong> <span style="color: #fff;">${logEntry.response_code}</span></div>`;
+        }
+        if (logEntry.merchant_id) {
+            fieldsHtml += `<div><strong style="color: #ccff88;">Merchant:</strong> <span style="color: #fff; font-family: monospace;">${logEntry.merchant_id}</span></div>`;
+        }
+        
+        fieldsHtml += '</div>';
+    }
+    
+    return fieldsHtml;
+}
+
+function formatFullAuthFields(logEntry) {
+    let fieldsHtml = '';
+    
+    if (logEntry.auth_method || logEntry.user_id || logEntry.auth_result || logEntry.failure_reason || logEntry.ip_address) {
+        fieldsHtml = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin: 10px 0; padding: 15px; background: #2d2d30; border-radius: 8px;">';
+        
+        if (logEntry.user_id) {
+            fieldsHtml += `<div><strong style="color: #88ccff;">User ID:</strong> <span style="color: #fff; font-family: monospace;">${logEntry.user_id}</span></div>`;
+        }
+        if (logEntry.auth_method) {
+            fieldsHtml += `<div><strong style="color: #ffaa88;">Method:</strong> <span style="color: #fff;">${logEntry.auth_method}</span></div>`;
+        }
+        if (logEntry.auth_result) {
+            const resultColor = logEntry.auth_result === 'SUCCESS' ? '#00ff88' : '#ff4444';
+            fieldsHtml += `<div><strong style="color: #ffaa00;">Result:</strong> <span style="color: ${resultColor}; font-weight: 600;">${logEntry.auth_result}</span></div>`;
+        }
+        if (logEntry.failure_reason) {
+            fieldsHtml += `<div><strong style="color: #ff4444;">Failure:</strong> <span style="color: #ff6666;">${logEntry.failure_reason}</span></div>`;
+        }
+        if (logEntry.ip_address) {
+            fieldsHtml += `<div><strong style="color: #ccff88;">IP:</strong> <span style="color: #fff; font-family: monospace;">${logEntry.ip_address}</span></div>`;
+        }
+        
+        fieldsHtml += '</div>';
+    }
+    
+    return fieldsHtml;
+}
+
+function formatPaymentGatewayFields(logEntry) {
+    let fieldsHtml = '';
+    
+    if (logEntry.payment_id || logEntry.amount || logEntry.currency || logEntry.gateway_response || logEntry.processing_time) {
+        fieldsHtml = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin: 10px 0; padding: 15px; background: #2d2d30; border-radius: 8px;">';
+        
+        if (logEntry.payment_id) {
+            fieldsHtml += `<div><strong style="color: #88ccff;">Payment ID:</strong> <span style="color: #fff; font-family: monospace;">${logEntry.payment_id}</span></div>`;
+        }
+        if (logEntry.amount && logEntry.currency) {
+            fieldsHtml += `<div><strong style="color: #00ff88;">Amount:</strong> <span style="color: #00ff88; font-weight: 600;">${logEntry.amount} ${logEntry.currency}</span></div>`;
+        }
+        if (logEntry.gateway_response) {
+            const responseColor = logEntry.gateway_response === 'APPROVED' ? '#00ff88' : '#ff4444';
+            fieldsHtml += `<div><strong style="color: #ffaa00;">Gateway:</strong> <span style="color: ${responseColor}; font-weight: 600;">${logEntry.gateway_response}</span></div>`;
+        }
+        if (logEntry.processing_time) {
+            fieldsHtml += `<div><strong style="color: #ff88cc;">Processing:</strong> <span style="color: #fff;">${logEntry.processing_time}ms</span></div>`;
+        }
+        
+        fieldsHtml += '</div>';
+    }
+    
+    return fieldsHtml;
+}
+
+function formatFraudDetectionFields(logEntry) {
+    let fieldsHtml = '';
+    
+    if (logEntry.risk_score || logEntry.decision || logEntry.fraud_indicators || logEntry.rules_triggered) {
+        fieldsHtml = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin: 10px 0; padding: 15px; background: #2d2d30; border-radius: 8px;">';
+        
+        if (logEntry.risk_score !== undefined) {
+            const riskColor = logEntry.risk_score >= 75 ? '#ff4444' : logEntry.risk_score >= 50 ? '#ffaa00' : '#00ff88';
+            fieldsHtml += `<div><strong style="color: #ff88cc;">Risk Score:</strong> <span style="color: ${riskColor}; font-weight: 600;">${logEntry.risk_score}/100</span></div>`;
+        }
+        if (logEntry.decision) {
+            const decisionColor = logEntry.decision === 'APPROVE' ? '#00ff88' : '#ff4444';
+            fieldsHtml += `<div><strong style="color: #ffaa00;">Decision:</strong> <span style="color: ${decisionColor}; font-weight: 600;">${logEntry.decision}</span></div>`;
+        }
+        if (logEntry.fraud_indicators && logEntry.fraud_indicators.length > 0) {
+            fieldsHtml += `<div><strong style="color: #ff4444;">Indicators:</strong> <span style="color: #ff6666;">${logEntry.fraud_indicators.join(', ')}</span></div>`;
+        }
+        if (logEntry.rules_triggered && logEntry.rules_triggered.length > 0) {
+            fieldsHtml += `<div><strong style="color: #88ccff;">Rules:</strong> <span style="color: #fff;">${logEntry.rules_triggered.join(', ')}</span></div>`;
+        }
+        
+        fieldsHtml += '</div>';
+    }
+    
+    return fieldsHtml;
+}
+
+function formatApiGatewayFields(logEntry) {
+    let fieldsHtml = '';
+    
+    if (logEntry.api_endpoint || logEntry.http_method || logEntry.response_time || logEntry.status_code || logEntry.request_size) {
+        fieldsHtml = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin: 10px 0; padding: 15px; background: #2d2d30; border-radius: 8px;">';
+        
+        if (logEntry.http_method && logEntry.api_endpoint) {
+            const methodColor = getHttpMethodColor(logEntry.http_method);
+            fieldsHtml += `<div><strong style="color: #88ccff;">Endpoint:</strong> <span style="color: ${methodColor}; font-weight: 600;">${logEntry.http_method}</span> <span style="color: #fff; font-family: monospace;">${logEntry.api_endpoint}</span></div>`;
+        }
+        if (logEntry.status_code) {
+            const statusColor = getHttpStatusColor(logEntry.status_code);
+            fieldsHtml += `<div><strong style="color: #ffaa00;">Status:</strong> <span style="color: ${statusColor}; font-weight: 600;">${logEntry.status_code}</span></div>`;
+        }
+        if (logEntry.response_time) {
+            const timeColor = logEntry.response_time > 1000 ? '#ff4444' : logEntry.response_time > 500 ? '#ffaa00' : '#00ff88';
+            fieldsHtml += `<div><strong style="color: #ff88cc;">Response Time:</strong> <span style="color: ${timeColor}; font-weight: 600;">${logEntry.response_time}ms</span></div>`;
+        }
+        if (logEntry.request_size) {
+            fieldsHtml += `<div><strong style="color: #ccff88;">Request Size:</strong> <span style="color: #fff;">${formatBytes(logEntry.request_size)}</span></div>`;
+        }
+        
+        fieldsHtml += '</div>';
+    }
+    
+    return fieldsHtml;
+}
+
+function formatEnforceXmlFields(logEntry) {
+    // Placeholder for XML6 specific fields - customize based on your XML6 log structure
+    return '';
+}
+
+// Utility functions
+function formatLogTimestamp(timestamp) {
+    if (!timestamp) return 'Unknown';
+    try {
+        const date = new Date(timestamp);
+        return date.toLocaleString('en-US', {
+            month: 'short',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
+    } catch {
+        return timestamp;
+    }
+}
+
+function formatTimeRange(range) {
+    const ranges = {
+        '1h': 'Last 1 Hour',
+        '6h': 'Last 6 Hours',
+        '24h': 'Last 24 Hours',
+        '7d': 'Last 7 Days',
+        '30d': 'Last 30 Days'
+    };
+    return ranges[range] || range;
+}
+
+function getHttpMethodColor(method) {
+    const colors = {
+        'GET': '#00ff88',
+        'POST': '#ffaa00',
+        'PUT': '#88ccff',
+        'DELETE': '#ff4444',
+        'PATCH': '#ff88cc'
+    };
+    return colors[method] || '#cccccc';
+}
+
+function getHttpStatusColor(status) {
+    const statusNum = parseInt(status);
+    if (statusNum >= 200 && statusNum < 300) return '#00ff88'; // Success
+    if (statusNum >= 300 && statusNum < 400) return '#ffaa00'; // Redirect
+    if (statusNum >= 400 && statusNum < 500) return '#ff4444'; // Client Error
+    if (statusNum >= 500) return '#ff0000'; // Server Error
+    return '#cccccc';
+}
+
+function formatBytes(bytes) {
+    if (!bytes) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+function toggleLogDetails(index) {
+    const detailsDiv = document.getElementById(`log-details-${index}`);
+    const toggleText = document.getElementById(`toggle-text-${index}`);
+    
+    if (detailsDiv.style.display === 'none') {
+        detailsDiv.style.display = 'block';
+        toggleText.textContent = 'Hide Raw Data';
+    } else {
+        detailsDiv.style.display = 'none';
+        toggleText.textContent = 'Show Raw Data';
+    }
+}
+
+function getLogConfig(logType) {
+    const configs = {
+        '3d-secure': { icon: '🔐', display_name: '3D Secure Authentication' },
+        'enforce-xml6': { icon: '📋', display_name: 'Enforce XML6' },
+        'full-auth': { icon: '🔑', display_name: 'Full Authentication' },
+        'payment-gateway': { icon: '💳', display_name: 'Payment Gateway' },
+        'fraud-detection': { icon: '🚨', display_name: 'Fraud Detection' },
+        'api-gateway': { icon: '🌐', display_name: 'API Gateway' }
+    };
+    return configs[logType] || { icon: '📊', display_name: 'Log Analysis' };
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Add log analysis back button to the goBackToForm function
+function goBackToLogAnalysis() {
+    // Clear the chat container and show log analysis options
+    const chatContainer = document.getElementById('chatContainer');
+    if (chatContainer) {
+        const logAnalysisContent = `
+            <div class="welcome-message">
+                <h2>📊 Log Analysis Options</h2>
+                <p>Choose the type of logs you want to analyze:</p>
+                
+                <div class="log-analysis-options">
+                    <div class="log-option" onclick="showLogForm('3d-secure')">
+                        <div class="log-option-icon">🔐</div>
+                        <h4>3D Secure</h4>
+                        <p>Analyze 3D Secure authentication logs and transactions</p>
+                    </div>
+                    <div class="log-option" onclick="showLogForm('enforce-xml6')">
+                        <div class="log-option-icon">📋</div>
+                        <h4>Enforce XML6</h4>
+                        <p>Review XML6 enforcement logs and compliance data</p>
+                    </div>
+                    <div class="log-option" onclick="showLogForm('full-auth')">
+                        <div class="log-option-icon">🔑</div>
+                        <h4>Full Auth</h4>
+                        <p>Examine full authentication flow logs and results</p>
+                    </div>
+                    <div class="log-option" onclick="showLogForm('payment-gateway')">
+                        <div class="log-option-icon">💳</div>
+                        <h4>Payment Gateway</h4>
+                        <p>Analyze payment gateway transaction logs</p>
+                    </div>
+                    <div class="log-option" onclick="showLogForm('fraud-detection')">
+                        <div class="log-option-icon">🚨</div>
+                        <h4>Fraud Detection</h4>
+                        <p>Review fraud detection system logs and alerts</p>
+                    </div>
+                    <div class="log-option" onclick="showLogForm('api-gateway')">
+                        <div class="log-option-icon">🌐</div>
+                        <h4>API Gateway</h4>
+                        <p>Monitor API gateway access and performance logs</p>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        chatContainer.innerHTML = logAnalysisContent;
+        
+        // Update the tab and input visibility
+        showTab('logs');
+    }
 }
