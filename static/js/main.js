@@ -1,6 +1,7 @@
 // static/js/main.js - Complete version with table format for order data
 // Global variables
 let currentTab = 'jira';
+let currentLogType = null;
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
@@ -1191,4 +1192,252 @@ function addMessageSimple(content, isUser, isLoading = false) {
     chatContainer.scrollTop = chatContainer.scrollHeight;
     
     return messageDiv;
+}
+
+// Show log analysis form for specific log type
+function showLogForm(logType) {
+    console.log('Showing log form for:', logType);
+    currentLogType = logType;
+    
+    // Log type configurations
+    const logConfigs = {
+        '3d-secure': {
+            title: '3D Secure Log Analysis',
+            icon: '🔐',
+            description: 'Analyze 3D Secure authentication logs and transactions',
+            sessionLabel: 'Session ID',
+            sessionPlaceholder: 'e.g., 3ds_sess_12345abcde',
+            additionalFields: [
+                { name: 'transaction_id', label: 'Transaction ID', placeholder: 'txn_123456789', required: false },
+                { name: 'merchant_id', label: 'Merchant ID', placeholder: 'MERCH_001', required: false }
+            ]
+        },
+        'enforce-xml6': {
+            title: 'Enforce XML6 Log Analysis',
+            icon: '📋',
+            description: 'Review XML6 enforcement logs and compliance data',
+            sessionLabel: 'Session ID',
+            sessionPlaceholder: 'e.g., xml6_sess_abcde12345',
+            additionalFields: [
+                { name: 'xml_version', label: 'XML Version', placeholder: '6.0', required: false },
+                { name: 'validation_status', label: 'Validation Status', placeholder: 'VALID', required: false }
+            ]
+        },
+        'full-auth': {
+            title: 'Full Authentication Log Analysis',
+            icon: '🔑',
+            description: 'Examine full authentication flow logs and results',
+            sessionLabel: 'Session ID',
+            sessionPlaceholder: 'e.g., auth_sess_xyz789',
+            additionalFields: [
+                { name: 'user_id', label: 'User ID', placeholder: 'user_12345', required: false },
+                { name: 'auth_method', label: 'Auth Method', placeholder: 'PASSWORD', required: false }
+            ]
+        },
+        'payment-gateway': {
+            title: 'Payment Gateway Log Analysis',
+            icon: '💳',
+            description: 'Analyze payment gateway transaction logs',
+            sessionLabel: 'Session ID',
+            sessionPlaceholder: 'e.g., pay_sess_abc123',
+            additionalFields: [
+                { name: 'payment_id', label: 'Payment ID', placeholder: 'pay_123456789', required: false },
+                { name: 'gateway', label: 'Gateway', placeholder: 'STRIPE', required: false }
+            ]
+        },
+        'fraud-detection': {
+            title: 'Fraud Detection Log Analysis',
+            icon: '🚨',
+            description: 'Review fraud detection system logs and alerts',
+            sessionLabel: 'Session ID',
+            sessionPlaceholder: 'e.g., fraud_sess_def456',
+            additionalFields: [
+                { name: 'risk_score', label: 'Risk Score', placeholder: '75', required: false },
+                { name: 'decision', label: 'Decision', placeholder: 'APPROVE', required: false }
+            ]
+        },
+        'api-gateway': {
+            title: 'API Gateway Log Analysis',
+            icon: '🌐',
+            description: 'Monitor API gateway access and performance logs',
+            sessionLabel: 'Session ID',
+            sessionPlaceholder: 'e.g., api_sess_ghi789',
+            additionalFields: [
+                { name: 'api_endpoint', label: 'API Endpoint', placeholder: '/api/v1/payments', required: false },
+                { name: 'http_method', label: 'HTTP Method', placeholder: 'POST', required: false }
+            ]
+        }
+    };
+    
+    const config = logConfigs[logType];
+    if (!config) {
+        showAlert('Unknown log type selected');
+        return;
+    }
+    
+    // Build additional fields HTML
+    let additionalFieldsHtml = '';
+    config.additionalFields.forEach(field => {
+        additionalFieldsHtml += `
+            <div class="log-form-group">
+                <label for="${field.name}">${field.label}:</label>
+                <input type="text" 
+                       id="${field.name}" 
+                       placeholder="${field.placeholder}"
+                       ${field.required ? 'required' : ''}>
+            </div>
+        `;
+    });
+    
+    const logFormHtml = `
+        ${addBackButton('logs')}
+        
+        <div class="log-form">
+            <h3>
+                <span>${config.icon}</span>
+                <span>${config.title}</span>
+            </h3>
+            
+            <p style="color: #cccccc; margin-bottom: 25px; line-height: 1.4;">
+                ${config.description}
+            </p>
+            
+            <div class="log-form-group">
+                <label for="sessionId">${config.sessionLabel}:</label>
+                <input type="text" 
+                       id="sessionId" 
+                       placeholder="${config.sessionPlaceholder}"
+                       required>
+            </div>
+            
+            ${additionalFieldsHtml}
+            
+            <div class="log-form-row">
+                <div class="log-form-group">
+                    <label for="timeRange">Time Range:</label>
+                    <select id="timeRange">
+                        <option value="1h">Last 1 Hour</option>
+                        <option value="6h">Last 6 Hours</option>
+                        <option value="24h" selected>Last 24 Hours</option>
+                        <option value="7d">Last 7 Days</option>
+                        <option value="30d">Last 30 Days</option>
+                    </select>
+                </div>
+                
+                <div class="log-form-group">
+                    <label for="logLevel">Log Level:</label>
+                    <select id="logLevel">
+                        <option value="all">All Levels</option>
+                        <option value="error">Error</option>
+                        <option value="warn">Warning</option>
+                        <option value="info" selected>Info</option>
+                        <option value="debug">Debug</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="log-form-group">
+                <label for="maxResults">Max Results:</label>
+                <select id="maxResults">
+                    <option value="50">50 Results</option>
+                    <option value="100" selected>100 Results</option>
+                    <option value="250">250 Results</option>
+                    <option value="500">500 Results</option>
+                </select>
+            </div>
+            
+            <button class="log-search-button" onclick="searchLogs('${logType}')">
+                <span>${config.icon}</span>
+                <span>Search Logs</span>
+            </button>
+        </div>
+    `;
+    
+    addMessage(logFormHtml, false);
+}
+
+// Search logs function
+async function searchLogs(logType) {
+    console.log('Searching logs for:', logType);
+    
+    const sessionId = document.getElementById('sessionId');
+    const timeRange = document.getElementById('timeRange');
+    const logLevel = document.getElementById('logLevel');
+    const maxResults = document.getElementById('maxResults');
+    const searchBtn = document.querySelector('.log-search-button');
+    
+    if (!sessionId || !sessionId.value.trim()) {
+        showAlert('Please enter a Session ID');
+        return;
+    }
+    
+    // Get additional form fields
+    const filters = {
+        session_id: sessionId.value.trim(),
+        time_range: timeRange ? timeRange.value : '24h',
+        log_level: logLevel ? logLevel.value : 'all',
+        max_results: maxResults ? parseInt(maxResults.value) : 100
+    };
+    
+    // Add log-type specific filters
+    const logConfigs = {
+        '3d-secure': ['transaction_id', 'merchant_id'],
+        'enforce-xml6': ['xml_version', 'validation_status'],
+        'full-auth': ['user_id', 'auth_method'],
+        'payment-gateway': ['payment_id', 'gateway'],
+        'fraud-detection': ['risk_score', 'decision'],
+        'api-gateway': ['api_endpoint', 'http_method']
+    };
+    
+    const additionalFields = logConfigs[logType] || [];
+    additionalFields.forEach(fieldName => {
+        const field = document.getElementById(fieldName);
+        if (field && field.value.trim()) {
+            filters[fieldName] = field.value.trim();
+        }
+    });
+    
+    // Show loading state
+    if (searchBtn) {
+        searchBtn.disabled = true;
+        searchBtn.innerHTML = '<span>🔄</span><span>Searching...</span>';
+    }
+    
+    try {
+        console.log('Sending log search request:', { log_type: logType, filters });
+        
+        const response = await fetch('/api/search-logs', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                log_type: logType,
+                ...filters
+            })
+        });
+
+        const result = await response.json();
+        console.log('Log search result:', result);
+
+        if (result.success) {
+            displayLogResults(result);
+        } else {
+            addMessage(`<div class="error-message">Error: ${result.error}</div>`, false);
+        }
+        
+    } catch (error) {
+        console.error('Log search error:', error);
+        addMessage(`<div class="error-message">Network Error: ${error.message}</div>`, false);
+    } finally {
+        if (searchBtn) {
+            searchBtn.disabled = false;
+            const config = getLogConfig(logType);
+            searchBtn.innerHTML = `<span>${config.icon}</span><span>Search Logs</span>`;
+        }
+    }
+}
+
+function displayLogResults(result) {
+    console.log('Displaying log results:', result);
 }
