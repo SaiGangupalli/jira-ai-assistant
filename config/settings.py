@@ -36,6 +36,14 @@ class Config:
     ORACLE_POOL_MIN = int(os.environ.get('ORACLE_POOL_MIN', '2'))
     ORACLE_POOL_MAX = int(os.environ.get('ORACLE_POOL_MAX', '10'))
     ORACLE_POOL_INCREMENT = int(os.environ.get('ORACLE_POOL_INCREMENT', '1'))
+
+    # Elasticsearch Configuration
+    ELASTICSEARCH_HOST = os.environ.get('ELASTICSEARCH_HOST', 'localhost')
+    ELASTICSEARCH_PORT = os.environ.get('ELASTICSEARCH_PORT', '9200')
+    ELASTICSEARCH_USERNAME = os.environ.get('ELASTICSEARCH_USERNAME')
+    ELASTICSEARCH_PASSWORD = os.environ.get('ELASTICSEARCH_PASSWORD')
+    ELASTICSEARCH_USE_SSL = os.environ.get('ELASTICSEARCH_USE_SSL', 'false').lower() == 'true'
+    ELASTICSEARCH_VERIFY_SSL = os.environ.get('ELASTICSEARCH_VERIFY_SSL', 'true').lower() == 'true'
     
     # Logging Configuration
     LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
@@ -62,6 +70,93 @@ class Config:
         'promo_code',       # Optional promotional code
         'tracking_number'   # May not be assigned yet
     ]
+
+    LOG_ANALYSIS_CONFIGS = {
+        '3d-secure': {
+            'index': os.environ.get('ES_INDEX_3D_SECURE', 'logs-3d-secure-*'),
+            'session_field': 'sessionId',
+            'level_field': 'level',
+            'component_field': 'component',
+            'display_name': '3D Secure Authentication',
+            'description': 'Analyze 3D Secure authentication logs and transactions',
+            'icon': '🔐',
+            'custom_filters': {
+                'transactionId': 'Transaction ID',
+                'merchantId': 'Merchant ID',
+                'authStatus': 'Auth Status'
+            }
+        },
+        'enforce-xml6': {
+            'index': os.environ.get('ES_INDEX_ENFORCE_XML6', 'logs-enforce-xml6-*'),
+            'session_field': 'sessionId',
+            'level_field': 'level',
+            'component_field': 'component',
+            'display_name': 'Enforce XML6',
+            'description': 'Review XML6 enforcement logs and compliance data',
+            'icon': '📋',
+            'custom_filters': {
+                'xmlVersion': 'XML Version',
+                'validationStatus': 'Validation Status',
+                'complianceLevel': 'Compliance Level'
+            }
+        },
+        'full-auth': {
+            'index': os.environ.get('ES_INDEX_FULL_AUTH', 'logs-full-auth-*'),
+            'session_field': 'sessionId',
+            'level_field': 'level',
+            'component_field': 'component',
+            'display_name': 'Full Authentication',
+            'description': 'Examine full authentication flow logs and results',
+            'icon': '🔑',
+            'custom_filters': {
+                'authMethod': 'Auth Method',
+                'userId': 'User ID',
+                'authResult': 'Auth Result'
+            }
+        },
+        'payment-gateway': {
+            'index': os.environ.get('ES_INDEX_PAYMENT_GATEWAY', 'logs-payment-gateway-*'),
+            'session_field': 'sessionId',
+            'level_field': 'level',
+            'component_field': 'component',
+            'display_name': 'Payment Gateway',
+            'description': 'Analyze payment gateway transaction logs',
+            'icon': '💳',
+            'custom_filters': {
+                'paymentId': 'Payment ID',
+                'gateway': 'Gateway',
+                'currency': 'Currency'
+            }
+        },
+        'fraud-detection': {
+            'index': os.environ.get('ES_INDEX_FRAUD_DETECTION', 'logs-fraud-detection-*'),
+            'session_field': 'sessionId',
+            'level_field': 'level',
+            'component_field': 'component',
+            'display_name': 'Fraud Detection',
+            'description': 'Review fraud detection system logs and alerts',
+            'icon': '🚨',
+            'custom_filters': {
+                'riskScore': 'Risk Score',
+                'decision': 'Decision',
+                'ruleSet': 'Rule Set'
+            }
+        },
+        'api-gateway': {
+            'index': os.environ.get('ES_INDEX_API_GATEWAY', 'logs-api-gateway-*'),
+            'session_field': 'sessionId',
+            'level_field': 'level',
+            'component_field': 'component',
+            'display_name': 'API Gateway',
+            'description': 'Monitor API gateway access and performance logs',
+            'icon': '🌐',
+            'custom_filters': {
+                'apiEndpoint': 'API Endpoint',
+                'httpMethod': 'HTTP Method',
+                'statusCode': 'Status Code'
+            }
+        }
+    }
     
     @property
     def ORACLE_DSN(self):
@@ -92,8 +187,15 @@ class Config:
             'ORACLE_HOST': cls.ORACLE_HOST
         }
         
+        required_elasticsearch = {
+            'ELASTICSEARCH_HOST': cls.ELASTICSEARCH_HOST,
+            'ELASTICSEARCH_USERNAME': cls.ELASTICSEARCH_USERNAME,
+            'ELASTICSEARCH_PASSWORD': cls.ELASTICSEARCH_PASSWORD
+        } 
+        
         missing_jira = [var for var, value in required_jira.items() if not value]
         missing_oracle = [var for var, value in required_oracle.items() if not value]
+        missing_elasticsearch = [var for var, value in required_elasticsearch.items() if not value]
         
         if missing_jira:
             logger.error(f"Missing required Jira environment variables: {', '.join(missing_jira)}")
@@ -104,6 +206,10 @@ class Config:
             logger.error(f"Missing required Oracle environment variables: {', '.join(missing_oracle)}")
             cls._print_env_help()
             return False
+            
+        if missing_elasticsearch:
+            logger.warning(f"Missing Elasticsearch environment variables: {', '.join(missing_elasticsearch)}")
+            logger.warning("Log Analysis features will be disabled")
             
         if not (cls.ORACLE_SERVICE or cls.ORACLE_SID):
             logger.error("Either ORACLE_SERVICE or ORACLE_SID must be provided")
@@ -134,3 +240,26 @@ class Config:
         print("ORACLE_POOL_MIN=2")
         print("ORACLE_POOL_MAX=10")
         print("SECRET_KEY=your-secret-key")
+        print("\n# Elasticsearch Configuration (Optional - for Log Analysis)")
+        print("ELASTICSEARCH_HOST=your-es-host")
+        print("ELASTICSEARCH_PORT=9200")
+        print("ELASTICSEARCH_USERNAME=your-es-username")
+        print("ELASTICSEARCH_PASSWORD=your-es-password")
+        print("ELASTICSEARCH_USE_SSL=false")
+        print("ELASTICSEARCH_VERIFY_SSL=true")
+        print("\n# Custom Elasticsearch Index Names (Optional)")
+        print("ES_INDEX_3D_SECURE=logs-3d-secure-*")
+        print("ES_INDEX_ENFORCE_XML6=logs-enforce-xml6-*")
+        print("ES_INDEX_FULL_AUTH=logs-full-auth-*")
+        print("ES_INDEX_PAYMENT_GATEWAY=logs-payment-gateway-*")
+        print("ES_INDEX_FRAUD_DETECTION=logs-fraud-detection-*")
+        print("ES_INDEX_API_GATEWAY=logs-api-gateway-*")
+
+    @classmethod
+    def get_log_analysis_info(cls):
+        """Get log analysis configuration info"""
+        return {
+            'elasticsearch_configured': bool(cls.ELASTICSEARCH_HOST and cls.ELASTICSEARCH_USERNAME),
+            'available_log_types': list(cls.LOG_ANALYSIS_CONFIGS.keys()),
+            'log_type_configs': cls.LOG_ANALYSIS_CONFIGS
+        }
