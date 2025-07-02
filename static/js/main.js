@@ -2646,3 +2646,1140 @@ function formatFullTimestamp(timestamp) {
         return timestamp;
     }
 }
+
+
+// Add these functions to main.js for fraud analysis functionality
+
+// Global variable to track current fraud type
+let currentFraudType = null;
+
+// Show fraud analysis form for specific fraud type
+function showFraudForm(fraudType) {
+    console.log('Showing fraud form for:', fraudType);
+    currentFraudType = fraudType;
+    
+    // Fraud type configurations
+    const fraudConfigs = {
+        'digital_fraud': {
+            title: 'Digital Fraud Analysis',
+            icon: '🤖',
+            description: 'Analyze automated/bot-driven fraudulent activities and device fingerprinting patterns',
+            focus: ['Device fingerprinting', 'Automated behavior detection', 'Bot identification', 'Digital payment fraud']
+        },
+        'assisted_fraud': {
+            title: 'Assisted Fraud Analysis',
+            icon: '👥',
+            description: 'Analyze human-assisted fraudulent activities and social engineering patterns',
+            focus: ['Social engineering', 'Customer service fraud', 'Human behavior patterns', 'Account takeover']
+        },
+        'transaction_fraud': {
+            title: 'Transaction Fraud Analysis',
+            icon: '💳',
+            description: 'Analyze suspicious transaction patterns and payment anomalies',
+            focus: ['Payment fraud', 'Transaction velocity', 'Amount anomalies', 'Cross-border fraud']
+        },
+        'identity_fraud': {
+            title: 'Identity Fraud Analysis',
+            icon: '🆔',
+            description: 'Analyze identity theft, impersonation and synthetic identity fraud',
+            focus: ['Identity verification', 'Document fraud', 'Synthetic identity', 'Account creation fraud']
+        }
+    };
+    
+    const config = fraudConfigs[fraudType];
+    if (!config) {
+        showAlert('Unknown fraud type selected');
+        return;
+    }
+    
+    // Build focus areas HTML
+    let focusAreasHtml = '';
+    config.focus.forEach(area => {
+        focusAreasHtml += `<span style="display: inline-block; background: #333; color: #fff; padding: 4px 8px; border-radius: 12px; margin: 2px 4px; font-size: 0.8rem;">${area}</span>`;
+    });
+    
+    const fraudFormHtml = `
+        ${addBackButton('fraud')}
+        
+        <div class="fraud-form">
+            <h3>
+                <span>${config.icon}</span>
+                <span>${config.title}</span>
+            </h3>
+            
+            <p style="color: #cccccc; margin-bottom: 20px; line-height: 1.4;">
+                ${config.description}
+            </p>
+            
+            <div style="margin-bottom: 25px; padding: 15px; background: #2d2d30; border-radius: 8px; border-left: 4px solid #ff4444;">
+                <strong style="color: #ff4444; display: block; margin-bottom: 8px;">🎯 Focus Areas:</strong>
+                <div>${focusAreasHtml}</div>
+            </div>
+            
+            <div class="fraud-form-group">
+                <label for="fraudSessionId">Session ID:</label>
+                <input type="text" 
+                       id="fraudSessionId" 
+                       placeholder="Enter session ID to analyze (e.g., sess_abc123456)"
+                       required>
+                <small style="color: #888; font-size: 0.8rem; margin-top: 5px; display: block;">
+                    💡 The session ID will be used to gather logs from all monitoring systems
+                </small>
+            </div>
+            
+            <div class="fraud-form-group">
+                <label for="previewSession">Quick Preview:</label>
+                <button type="button" class="fraud-preview-button" onclick="previewFraudSession()" 
+                        style="background: #333; color: #fff; border: 1px solid #555; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; margin-bottom: 10px;">
+                    🔍 Preview Session Data
+                </button>
+                <div id="sessionPreview" style="display: none; margin-top: 10px;"></div>
+            </div>
+            
+            <button class="fraud-analyze-button" onclick="analyzeFraudSession('${fraudType}')">
+                <span>${config.icon}</span>
+                <span>Analyze ${config.title.replace(' Analysis', '')}</span>
+            </button>
+        </div>
+    `;
+    
+    addMessage(fraudFormHtml, false);
+}
+
+// Preview session data before full analysis
+async function previewFraudSession() {
+    const sessionIdInput = document.getElementById('fraudSessionId');
+    const previewDiv = document.getElementById('sessionPreview');
+    const previewBtn = document.querySelector('.fraud-preview-button');
+    
+    if (!sessionIdInput || !sessionIdInput.value.trim()) {
+        showAlert('Please enter a Session ID');
+        return;
+    }
+    
+    const sessionId = sessionIdInput.value.trim();
+    
+    // Show loading state
+    if (previewBtn) {
+        previewBtn.disabled = true;
+        previewBtn.innerHTML = '🔄 Loading...';
+    }
+    
+    try {
+        console.log('Previewing session data for:', sessionId);
+        
+        const response = await fetch('/api/fraud-session-preview', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                session_id: sessionId
+            })
+        });
+
+        const result = await response.json();
+        console.log('Session preview result:', result);
+
+        if (result.success) {
+            displaySessionPreview(result, previewDiv);
+        } else {
+            previewDiv.innerHTML = `<div style="color: #ff4444; padding: 10px; background: #2d1a1a; border-radius: 6px; border: 1px solid #ff4444;">❌ ${result.error}</div>`;
+        }
+        
+        previewDiv.style.display = 'block';
+        
+    } catch (error) {
+        console.error('Session preview error:', error);
+        previewDiv.innerHTML = `<div style="color: #ff4444; padding: 10px; background: #2d1a1a; border-radius: 6px; border: 1px solid #ff4444;">❌ Network Error: ${error.message}</div>`;
+        previewDiv.style.display = 'block';
+    } finally {
+        if (previewBtn) {
+            previewBtn.disabled = false;
+            previewBtn.innerHTML = '🔍 Preview Session Data';
+        }
+    }
+}
+
+function displaySessionPreview(result, container) {
+    const hasData = result.has_data;
+    const totalLogs = result.total_logs || 0;
+    
+    let previewHtml = '';
+    
+    if (!hasData) {
+        previewHtml = `
+            <div style="color: #ffaa00; padding: 15px; background: #332200; border-radius: 6px; border: 1px solid #ffaa00;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <span>⚠️</span>
+                    <strong>No Data Found</strong>
+                </div>
+                <p style="margin: 0; font-size: 0.9rem;">No logs found for session ID "${result.session_id}". This could mean:</p>
+                <ul style="margin: 8px 0 0 20px; font-size: 0.8rem;">
+                    <li>Session ID doesn't exist or is incorrect</li>
+                    <li>Logs are outside the search time range</li>
+                    <li>Data hasn't been indexed yet</li>
+                </ul>
+            </div>
+        `;
+    } else {
+        const orderType = result.order_classification;
+        const customerType = result.customer_type;
+        
+        previewHtml = `
+            <div style="color: #00ff88; padding: 15px; background: #1a2d1a; border-radius: 6px; border: 1px solid #00ff88;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px;">
+                    <span>✅</span>
+                    <strong>Session Data Found</strong>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 15px;">
+                    <div style="background: #2d2d30; padding: 10px; border-radius: 6px; text-align: center;">
+                        <div style="font-size: 1.5rem; font-weight: bold; color: #00ff88;">${totalLogs}</div>
+                        <div style="font-size: 0.8rem; color: #ccc;">Total Logs</div>
+                    </div>
+                    <div style="background: #2d2d30; padding: 10px; border-radius: 6px; text-align: center;">
+                        <div style="font-size: 1.2rem; font-weight: bold; color: #88ccff;">${orderType.type || 'Unknown'}</div>
+                        <div style="font-size: 0.8rem; color: #ccc;">Order Type</div>
+                    </div>
+                    <div style="background: #2d2d30; padding: 10px; border-radius: 6px; text-align: center;">
+                        <div style="font-size: 1.2rem; font-weight: bold; color: #ffaa88;">${customerType.type || 'Unknown'}</div>
+                        <div style="font-size: 0.8rem; color: #ccc;">Customer Type</div>
+                    </div>
+                </div>
+                
+                <div style="font-size: 0.9rem;">
+                    <strong>Log Distribution:</strong>
+                    <div style="margin-top: 8px; display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px;">
+                        ${Object.entries(result.log_counts).map(([type, count]) => 
+                            count > 0 ? `<span style="background: #333; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;"><strong>${type.replace('_', ' ')}:</strong> ${count}</span>` : ''
+                        ).filter(item => item).join('')}
+                    </div>
+                </div>
+                
+                ${orderType.confidence ? `<div style="margin-top: 10px; font-size: 0.8rem; color: #ccc;">Order classification confidence: ${Math.round(orderType.confidence * 100)}%</div>` : ''}
+            </div>
+        `;
+    }
+    
+    container.innerHTML = previewHtml;
+}
+
+// Main fraud analysis function
+async function analyzeFraudSession(fraudType) {
+    console.log('Starting fraud analysis for type:', fraudType);
+    
+    const sessionIdInput = document.getElementById('fraudSessionId');
+    const analyzeBtn = document.querySelector('.fraud-analyze-button');
+    
+    if (!sessionIdInput || !sessionIdInput.value.trim()) {
+        showAlert('Please enter a Session ID');
+        return;
+    }
+    
+    const sessionId = sessionIdInput.value.trim();
+    
+    // Show loading state
+    if (analyzeBtn) {
+        analyzeBtn.disabled = true;
+        analyzeBtn.innerHTML = '<span>🔄</span><span>Analyzing...</span>';
+    }
+    
+    try {
+        console.log('Sending fraud analysis request:', { session_id: sessionId, fraud_type: fraudType });
+        
+        const response = await fetch('/api/fraud-analysis', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                session_id: sessionId,
+                fraud_type: fraudType
+            })
+        });
+
+        const result = await response.json();
+        console.log('Fraud analysis result:', result);
+
+        if (result.success) {
+            displayFraudResults(result);
+        } else {
+            addMessage(`<div class="error-message">❌ Error: ${result.error}</div>`, false);
+        }
+        
+    } catch (error) {
+        console.error('Fraud analysis error:', error);
+        addMessage(`<div class="error-message">❌ Network Error: ${error.message}</div>`, false);
+    } finally {
+        if (analyzeBtn) {
+            analyzeBtn.disabled = false;
+            const config = getFraudConfig(fraudType);
+            analyzeBtn.innerHTML = `<span>${config.icon}</span><span>Analyze ${config.title.replace(' Analysis', '')}</span>`;
+        }
+    }
+}
+
+function displayFraudResults(result) {
+    console.log('Displaying fraud results:', result);
+    
+    const analysis = result.analysis;
+    const fraudConfig = getFraudConfig(result.fraud_type);
+    const riskLevel = analysis.risk_assessment;
+    
+    const fraudResultsHtml = `
+        ${addBackButton('fraud')}
+        
+        <div class="fraud-results">
+            <div class="fraud-results-header">
+                <h3>
+                    <span>${fraudConfig.icon}</span>
+                    <span>${fraudConfig.title}: ${result.session_id}</span>
+                </h3>
+                <div class="fraud-risk-badge fraud-risk-${riskLevel.level.toLowerCase()}">
+                    ${riskLevel.level} RISK (${Math.round(riskLevel.score)}/100)
+                </div>
+            </div>
+            
+            ${createFraudOverviewSection(analysis)}
+            ${createFraudOrderSection(analysis.order_classification, analysis.customer_type)}
+            ${createFraudMonitoringSection(analysis.monitoring_analysis)}
+            ${createFraudRiskSection(analysis.risk_assessment)}
+            ${createFraudRecommendationsSection(analysis.recommendations)}
+            ${createFraudTimelineSection(analysis.timeline)}
+            ${createFraudStatisticsSection(analysis.statistics)}
+        </div>
+        
+        ${addBottomActionButton('fraud', `Risk Level: ${riskLevel.level}`)}
+    `;
+    
+    addMessage(fraudResultsHtml, false);
+}
+
+function createFraudOverviewSection(analysis) {
+    return `
+        <div class="fraud-section">
+            <h4>📊 Analysis Overview</h4>
+            <div class="fraud-grid">
+                <div class="fraud-metric">
+                    <div class="fraud-metric-value" style="color: #00ff88;">${analysis.statistics.total_logs_analyzed}</div>
+                    <div class="fraud-metric-label">Total Logs Analyzed</div>
+                </div>
+                <div class="fraud-metric">
+                    <div class="fraud-metric-value" style="color: #ffaa00;">${analysis.statistics.fraud_calls_triggered}</div>
+                    <div class="fraud-metric-label">Fraud Calls Triggered</div>
+                </div>
+                <div class="fraud-metric">
+                    <div class="fraud-metric-value" style="color: ${analysis.statistics.fraud_call_success_rate >= 0.8 ? '#00ff88' : analysis.statistics.fraud_call_success_rate >= 0.6 ? '#ffaa00' : '#ff4444'};">
+                        ${Math.round(analysis.statistics.fraud_call_success_rate * 100)}%
+                    </div>
+                    <div class="fraud-metric-label">Success Rate</div>
+                </div>
+                <div class="fraud-metric">
+                    <div class="fraud-metric-value" style="color: #88ccff;">${analysis.statistics.decisions_made}</div>
+                    <div class="fraud-metric-label">Decisions Made</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function createFraudOrderSection(orderClassification, customerType) {
+    return `
+        <div class="fraud-section">
+            <h4>🛒 Order & Customer Analysis</h4>
+            <div class="fraud-grid">
+                <div style="background: #2d2d30; border: 1px solid #444; border-radius: 6px; padding: 15px;">
+                    <strong style="color: #88ccff;">Order Classification</strong>
+                    <div style="margin-top: 8px;">
+                        <div style="font-size: 1.2rem; color: #fff; margin-bottom: 5px;">${orderClassification.type || 'Unknown'}</div>
+                        <div style="font-size: 0.8rem; color: #ccc;">Confidence: ${Math.round((orderClassification.confidence || 0) * 100)}%</div>
+                        ${orderClassification.amount ? `<div style="font-size: 0.9rem; color: #00ff88; margin-top: 5px;">Amount: ${orderClassification.amount} ${orderClassification.currency || ''}</div>` : ''}
+                        ${orderClassification.indicators && orderClassification.indicators.length > 0 ? `
+                            <div style="margin-top: 8px;">
+                                ${orderClassification.indicators.map(indicator => 
+                                    `<span style="background: #333; color: #fff; padding: 2px 6px; border-radius: 10px; font-size: 0.7rem; margin: 2px;">${indicator}</span>`
+                                ).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+                <div style="background: #2d2d30; border: 1px solid #444; border-radius: 6px; padding: 15px;">
+                    <strong style="color: #ffaa88;">Customer Type</strong>
+                    <div style="margin-top: 8px;">
+                        <div style="font-size: 1.2rem; color: #fff; margin-bottom: 5px;">${customerType.type ? customerType.type.replace('_', ' ').toUpperCase() : 'Unknown'}</div>
+                        <div style="font-size: 0.8rem; color: #ccc;">Confidence: ${Math.round((customerType.confidence || 0) * 100)}%</div>
+                        ${customerType.customer_id ? `<div style="font-size: 0.9rem; color: #88ccff; margin-top: 5px; font-family: monospace;">ID: ${customerType.customer_id}</div>` : ''}
+                        ${customerType.indicators && customerType.indicators.length > 0 ? `
+                            <div style="margin-top: 8px;">
+                                ${customerType.indicators.map(indicator => 
+                                    `<span style="background: #333; color: #fff; padding: 2px 6px; border-radius: 10px; font-size: 0.7rem; margin: 2px;">${indicator}</span>`
+                                ).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function createFraudMonitoringSection(monitoringAnalysis) {
+    const triggeredCalls = monitoringAnalysis.triggered_calls || {};
+    const callSequence = monitoringAnalysis.call_sequence || [];
+    
+    let monitoringHtml = `
+        <div class="fraud-section">
+            <h4>🔍 Fraud Monitoring Analysis</h4>
+            <div style="margin-bottom: 15px;">
+                <strong style="color: #ffaa00;">Monitoring Categories Triggered:</strong>
+            </div>
+    `;
+    
+    if (Object.keys(triggeredCalls).length === 0) {
+        monitoringHtml += `
+            <div style="text-align: center; padding: 20px; background: #2d2d30; border-radius: 8px; color: #888;">
+                No fraud monitoring calls detected in the logs
+            </div>
+        `;
+    } else {
+        monitoringHtml += '<div class="fraud-grid">';
+        
+        Object.entries(triggeredCalls).forEach(([category, calls]) => {
+            const successCount = calls.filter(call => call.success).length;
+            const totalCount = calls.length;
+            const successRate = totalCount > 0 ? (successCount / totalCount) : 0;
+            const categoryColor = successRate >= 0.8 ? '#00ff88' : successRate >= 0.6 ? '#ffaa00' : '#ff4444';
+            
+            monitoringHtml += `
+                <div style="background: #2d2d30; border: 1px solid #444; border-radius: 6px; padding: 15px;">
+                    <strong style="color: ${categoryColor};">${category.replace('_', ' ').toUpperCase()}</strong>
+                    <div style="margin-top: 8px;">
+                        <div style="font-size: 1.2rem; color: ${categoryColor}; margin-bottom: 5px;">${successCount}/${totalCount}</div>
+                        <div style="font-size: 0.8rem; color: #ccc;">Success Rate: ${Math.round(successRate * 100)}%</div>
+                        <div style="margin-top: 8px;">
+                            ${calls.map(call => 
+                                `<div style="font-size: 0.7rem; color: ${call.success ? '#00ff88' : '#ff4444'}; margin: 2px 0;">
+                                    ${call.success ? '✅' : '❌'} ${call.call_type}
+                                </div>`
+                            ).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        monitoringHtml += '</div>';
+    }
+    
+    // Add failed calls section if any
+    const failedCalls = monitoringAnalysis.failed_calls || [];
+    if (failedCalls.length > 0) {
+        monitoringHtml += `
+            <div style="margin-top: 20px; padding: 15px; background: #2d1a1a; border-radius: 8px; border-left: 4px solid #ff4444;">
+                <strong style="color: #ff4444;">⚠️ Failed Monitoring Calls (${failedCalls.length}):</strong>
+                <div style="margin-top: 10px;">
+                    ${failedCalls.slice(0, 5).map(call => `
+                        <div style="font-size: 0.8rem; color: #ff6666; margin: 5px 0; padding: 8px; background: #331a1a; border-radius: 4px;">
+                            <strong>${call.category}</strong>: ${call.call_type} - ${call.message.substring(0, 100)}${call.message.length > 100 ? '...' : ''}
+                        </div>
+                    `).join('')}
+                    ${failedCalls.length > 5 ? `<div style="color: #888; font-size: 0.8rem; margin-top: 5px;">... and ${failedCalls.length - 5} more</div>` : ''}
+                </div>
+            </div>
+        `;
+    }
+    
+    monitoringHtml += '</div>';
+    return monitoringHtml;
+}
+
+function createFraudRiskSection(riskAssessment) {
+    return `
+        <div class="fraud-section">
+            <h4>⚠️ Risk Assessment</h4>
+            <div style="display: grid; grid-template-columns: auto 1fr; gap: 20px; align-items: start;">
+                <div style="text-align: center;">
+                    <div style="width: 120px; height: 120px; border-radius: 50%; border: 8px solid ${riskAssessment.color}; display: flex; align-items: center; justify-content: center; background: rgba(${riskAssessment.color.slice(1).match(/.{2}/g).map(h => parseInt(h, 16)).join(', ')}, 0.1);">
+                        <div>
+                            <div style="font-size: 1.8rem; font-weight: bold; color: ${riskAssessment.color};">${Math.round(riskAssessment.score)}</div>
+                            <div style="font-size: 0.8rem; color: ${riskAssessment.color};">RISK SCORE</div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px; font-weight: 600; color: ${riskAssessment.color};">${riskAssessment.level} RISK</div>
+                </div>
+                <div>
+                    <strong style="color: #ffffff;">Risk Factors:</strong>
+                    <div style="margin-top: 10px;">
+                        ${riskAssessment.factors && riskAssessment.factors.length > 0 ? 
+                            riskAssessment.factors.map(factor => 
+                                `<div style="margin: 8px 0; padding: 8px 12px; background: #2d2d30; border-radius: 6px; border-left: 3px solid ${riskAssessment.color}; font-size: 0.9rem; color: #fff;">
+                                    🔸 ${factor}
+                                </div>`
+                            ).join('') :
+                            '<div style="color: #00ff88; font-style: italic;">No significant risk factors identified</div>'
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function createFraudRecommendationsSection(recommendations) {
+    return `
+        <div class="fraud-section">
+            <h4>💡 Recommendations</h4>
+            <div style="background: #1a2d1a; border: 1px solid #00ff88; border-radius: 8px; padding: 15px;">
+                ${recommendations && recommendations.length > 0 ? 
+                    recommendations.map((recommendation, index) => 
+                        `<div style="margin: 10px 0; display: flex; align-items: flex-start; gap: 10px;">
+                            <span style="color: #00ff88; font-weight: bold; min-width: 20px;">${index + 1}.</span>
+                            <span style="color: #ffffff; line-height: 1.4;">${recommendation}</span>
+                        </div>`
+                    ).join('') :
+                    '<div style="color: #888; font-style: italic;">No specific recommendations generated</div>'
+                }
+            </div>
+        </div>
+    `;
+}
+
+function createFraudTimelineSection(timeline) {
+    return `
+        <div class="fraud-section">
+            <h4>⏰ Fraud Monitoring Timeline</h4>
+            <div class="fraud-timeline">
+                ${timeline && timeline.length > 0 ? 
+                    timeline.map(event => 
+                        `<div class="fraud-timeline-item">
+                            <div class="fraud-timeline-time">${formatTimelineTime(event.timestamp)}</div>
+                            <div class="fraud-timeline-event">
+                                <div style="font-weight: 600; margin-bottom: 2px;">${event.event}</div>
+                                <div style="font-size: 0.8rem; color: #ccc;">${event.details}</div>
+                            </div>
+                            <div class="fraud-timeline-status ${event.status.toLowerCase()}">${event.status}</div>
+                        </div>`
+                    ).join('') :
+                    '<div style="text-align: center; color: #888; padding: 20px;">No timeline events recorded</div>'
+                }
+            </div>
+        </div>
+    `;
+}
+
+function createFraudStatisticsSection(statistics) {
+    return `
+        <div class="fraud-section">
+            <h4>📈 Analysis Statistics</h4>
+            <div class="fraud-grid">
+                <div class="fraud-metric">
+                    <div class="fraud-metric-value" style="color: #88ccff;">${statistics.total_logs_analyzed}</div>
+                    <div class="fraud-metric-label">Total Logs</div>
+                </div>
+                <div class="fraud-metric">
+                    <div class="fraud-metric-value" style="color: #ffaa00;">${statistics.fraud_calls_triggered}</div>
+                    <div class="fraud-metric-label">Fraud Calls</div>
+                </div>
+                <div class="fraud-metric">
+                    <div class="fraud-metric-value" style="color: #ff88cc;">${statistics.risk_scores_recorded}</div>
+                    <div class="fraud-metric-label">Risk Scores</div>
+                </div>
+                <div class="fraud-metric">
+                    <div class="fraud-metric-value" style="color: #ccff88;">${statistics.decisions_made}</div>
+                    <div class="fraud-metric-label">Decisions</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Helper functions
+function getFraudConfig(fraudType) {
+    const configs = {
+        'digital_fraud': { icon: '🤖', title: 'Digital Fraud Analysis' },
+        'assisted_fraud': { icon: '👥', title: 'Assisted Fraud Analysis' },
+        'transaction_fraud': { icon: '💳', title: 'Transaction Fraud Analysis' },
+        'identity_fraud': { icon: '🆔', title: 'Identity Fraud Analysis' }
+    };
+    return configs[fraudType] || { icon: '🚨', title: 'Fraud Analysis' };
+}
+
+function formatTimelineTime(timestamp) {
+    if (!timestamp) return 'Unknown';
+    try {
+        const date = new Date(timestamp);
+        return date.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
+    } catch {
+        return timestamp.substring(0, 8);
+    }
+}
+
+// Update the goBackToForm function to handle fraud context
+function goBackToFraudAnalysis() {
+    const chatContainer = document.getElementById('chatContainer');
+    if (chatContainer) {
+        const fraudAnalysisContent = `
+            <div class="welcome-message">
+                <h2>🚨 Fraud Analysis Options</h2>
+                <p>Choose the type of fraud analysis you want to perform:</p>
+                
+                <div class="fraud-analysis-options">
+                    <div class="fraud-option" onclick="showFraudForm('digital_fraud')">
+                        <div class="fraud-option-icon">🤖</div>
+                        <h4>Digital Fraud</h4>
+                        <p>Analyze automated/bot-driven fraudulent activities and device fingerprinting</p>
+                    </div>
+                    <div class="fraud-option" onclick="showFraudForm('assisted_fraud')">
+                        <div class="fraud-option-icon">👥</div>
+                        <h4>Assisted Fraud</h4>
+                        <p>Analyze human-assisted fraudulent activities and social engineering</p>
+                    </div>
+                    <div class="fraud-option" onclick="showFraudForm('transaction_fraud')">
+                        <div class="fraud-option-icon">💳</div>
+                        <h4>Transaction Fraud</h4>
+                        <p>Analyze suspicious transaction patterns and payment anomalies</p>
+                    </div>
+                    <div class="fraud-option" onclick="showFraudForm('identity_fraud')">
+                        <div class="fraud-option-icon">🆔</div>
+                        <h4>Identity Fraud</h4>
+                        <p>Analyze identity theft, impersonation and synthetic identity fraud</p>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        chatContainer.innerHTML = fraudAnalysisContent;
+        showTab('fraud');
+    }
+}
+
+
+function goBackToForm(context) {
+    // Clear the chat container and restore the welcome message
+    const chatContainer = document.getElementById('chatContainer');
+    if (chatContainer) {
+        // Create the welcome message content
+        const welcomeContent = `
+            <div class="welcome-message">
+                <h2>Welcome to your Enhanced Jira AI Assistant! 👋</h2>
+                <p>Your Jira, Oracle DB, and Elasticsearch connections are configured and ready. Choose your operation:</p>
+                
+                <div class="feature-tabs">
+                    <button class="tab-button ${context === 'jira' ? 'active' : ''}" onclick="showTab('jira')">
+                        📋 Jira Queries
+                    </button>
+                    <button class="tab-button ${context === 'validation' ? 'active' : ''}" onclick="showTab('validation')">
+                        🔍 Order Validation
+                    </button>
+                    <button class="tab-button ${context === 'security' ? 'active' : ''}" onclick="showTab('security')">
+                        🛡️ Security Analysis
+                    </button>
+                    <button class="tab-button ${context === 'logs' ? 'active' : ''}" onclick="showTab('logs')">
+                        📊 Log Analysis
+                    </button>
+                    <button class="tab-button ${context === 'fraud' ? 'active' : ''}" onclick="showTab('fraud')">
+                        🚨 Fraud Analysis
+                    </button>
+                </div>
+
+                <div class="tab-content ${context === 'jira' ? '' : 'hidden'}" id="jira-tab">
+                    <h3>Jira Query Examples</h3>
+                    <div class="example-queries">
+                        <div class="example-query" onclick="useExampleQuery(this)">
+                            <h4>📋 Find Stories by Assignee</h4>
+                            <p>Show me all stories assigned to John Smith</p>
+                        </div>
+                        <div class="example-query" onclick="useExampleQuery(this)">
+                            <h4>🐛 Search by Issue Type</h4>
+                            <p>Find all bugs in the DEV project</p>
+                        </div>
+                        <div class="example-query" onclick="useExampleQuery(this)">
+                            <h4>📈 Status Filtering</h4>
+                            <p>What are the open epics for this sprint?</p>
+                        </div>
+                        <div class="example-query" onclick="useExampleQuery(this)">
+                            <h4>📅 Date Range Queries</h4>
+                            <p>Show me stories created in the last week</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-content ${context === 'validation' ? '' : 'hidden'}" id="validation-tab">
+                    <h3>Order Validation</h3>
+                    <div class="validation-form">
+                        <div class="form-group">
+                            <label for="orderNumber">Order Number:</label>
+                            <input type="text" id="orderNumber" placeholder="e.g., ORD-123456, ORDER_789" maxlength="20">
+                        </div>
+                        <div class="form-group">
+                            <label for="locationCode">Location Code:</label>
+                            <input type="text" id="locationCode" placeholder="e.g., NYC, LA, CHI" maxlength="5">
+                        </div>
+                        <button class="validate-button" onclick="validateOrder()">
+                            🔍 Validate Order
+                        </button>
+                    </div>
+                </div>
+
+                <div class="tab-content ${context === 'security' ? '' : 'hidden'}" id="security-tab">
+                    <h3>Security Impact Analysis</h3>
+                    <div class="security-form">
+                        <div class="form-group">
+                            <label for="issueKey">Issue Key:</label>
+                            <input type="text" id="issueKey" placeholder="e.g., PROJ-123, DEV-456" maxlength="20">
+                        </div>
+                        <button class="analyze-button" onclick="analyzeIssueSecurity()">
+                            🛡️ Analyze Security Impact
+                        </button>
+                    </div>
+                </div>
+
+                <div class="tab-content ${context === 'logs' ? '' : 'hidden'}" id="logs-tab">
+                    <h3>Log Analysis Options</h3>
+                    <div class="log-analysis-options">
+                        <div class="log-option" onclick="showLogForm('3d-secure')">
+                            <div class="log-option-icon">🔐</div>
+                            <h4>3D Secure</h4>
+                            <p>Analyze 3D Secure authentication logs and transactions</p>
+                        </div>
+                        <div class="log-option" onclick="showLogForm('enforce-xml6')">
+                            <div class="log-option-icon">📋</div>
+                            <h4>Enforce XML6</h4>
+                            <p>Review XML6 enforcement logs and compliance data</p>
+                        </div>
+                        <div class="log-option" onclick="showLogForm('full-auth')">
+                            <div class="log-option-icon">🔑</div>
+                            <h4>Full Auth</h4>
+                            <p>Examine full authentication flow logs and results</p>
+                        </div>
+                        <div class="log-option" onclick="showLogForm('payment-gateway')">
+                            <div class="log-option-icon">💳</div>
+                            <h4>Payment Gateway</h4>
+                            <p>Analyze payment gateway transaction logs</p>
+                        </div>
+                        <div class="log-option" onclick="showLogForm('fraud-detection')">
+                            <div class="log-option-icon">🚨</div>
+                            <h4>Fraud Detection</h4>
+                            <p>Review fraud detection system logs and alerts</p>
+                        </div>
+                        <div class="log-option" onclick="showLogForm('api-gateway')">
+                            <div class="log-option-icon">🌐</div>
+                            <h4>API Gateway</h4>
+                            <p>Monitor API gateway access and performance logs</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-content ${context === 'fraud' ? '' : 'hidden'}" id="fraud-tab">
+                    <h3>Fraud Analysis Options</h3>
+                    <div class="fraud-analysis-options">
+                        <div class="fraud-option" onclick="showFraudForm('digital_fraud')">
+                            <div class="fraud-option-icon">🤖</div>
+                            <h4>Digital Fraud</h4>
+                            <p>Analyze automated/bot-driven fraudulent activities and device fingerprinting</p>
+                        </div>
+                        <div class="fraud-option" onclick="showFraudForm('assisted_fraud')">
+                            <div class="fraud-option-icon">👥</div>
+                            <h4>Assisted Fraud</h4>
+                            <p>Analyze human-assisted fraudulent activities and social engineering</p>
+                        </div>
+                        <div class="fraud-option" onclick="showFraudForm('transaction_fraud')">
+                            <div class="fraud-option-icon">💳</div>
+                            <h4>Transaction Fraud</h4>
+                            <p>Analyze suspicious transaction patterns and payment anomalies</p>
+                        </div>
+                        <div class="fraud-option" onclick="showFraudForm('identity_fraud')">
+                            <div class="fraud-option-icon">🆔</div>
+                            <h4>Identity Fraud</h4>
+                            <p>Analyze identity theft, impersonation and synthetic identity fraud</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        chatContainer.innerHTML = welcomeContent;
+        
+        // Make sure the correct tab is shown and input visibility is set
+        showTab(context);
+        
+        // Clear form inputs and query input based on context
+        if (context === 'validation') {
+            const orderNumber = document.getElementById('orderNumber');
+            const locationCode = document.getElementById('locationCode');
+            if (orderNumber) orderNumber.value = '';
+            if (locationCode) locationCode.value = '';
+        } else if (context === 'security') {
+            const issueKey = document.getElementById('issueKey');
+            if (issueKey) issueKey.value = '';
+        } else if (context === 'jira') {
+            const queryInput = document.getElementById('queryInput');
+            if (queryInput) {
+                queryInput.value = '';
+                queryInput.style.height = 'auto';
+            }
+        }
+        // Note: 'logs' and 'fraud' contexts don't need form clearing since they show option selection
+        
+        // Update current tab
+        currentTab = context;
+    }
+}
+
+// Update the addBackButton function to handle fraud context:
+function addBackButton(context, extraInfo = '') {
+    let buttonText = '';
+    let icon = '';
+    
+    switch(context) {
+        case 'validation':
+            buttonText = 'Back to Order Validation';
+            icon = '🔍';
+            break;
+        case 'security':
+            buttonText = 'Back to Security Analysis';
+            icon = '🛡️';
+            break;
+        case 'logs':
+            buttonText = 'Back to Log Analysis';
+            icon = '📊';
+            break;
+        case 'fraud':
+            buttonText = 'Back to Fraud Analysis';
+            icon = '🚨';
+            break;
+        case 'jira':
+            buttonText = 'Back to Home';
+            icon = '🏠';
+            break;
+        default:
+            buttonText = 'Back';
+            icon = '←';
+    }
+    
+    if (extraInfo) {
+        buttonText += ` ${extraInfo}`;
+    }
+    
+    return `
+        <div style="margin-bottom: 20px;">
+            <button onclick="goBackToForm('${context}')" 
+                    style="background: #333333; color: #ffffff; border: 1px solid #555; padding: 10px 20px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 0.9rem; transition: all 0.2s;"
+                    onmouseover="this.style.background='#444444'; this.style.transform='translateY(-1px)'"
+                    onmouseout="this.style.background='#333333'; this.style.transform='translateY(0)'">
+                <span>${icon}</span>
+                <span>${buttonText}</span>
+            </button>
+        </div>
+    `;
+}
+
+// Update the addBottomActionButton function to handle fraud context:
+function addBottomActionButton(context, resultInfo = '') {
+    let buttonText = '';
+    let icon = '';
+    let action = '';
+    
+    switch(context) {
+        case 'validation':
+            buttonText = 'Validate Another Order';
+            icon = '🔍';
+            action = `goBackToForm('validation')`;
+            break;
+        case 'security':
+            buttonText = 'Analyze Another Issue';
+            icon = '🛡️';
+            action = `goBackToForm('security')`;
+            break;
+        case 'logs':
+            buttonText = 'Search More Logs';
+            icon = '📊';
+            action = `goBackToForm('logs')`;
+            break;
+        case 'fraud':
+            buttonText = 'Analyze Another Session';
+            icon = '🚨';
+            action = `goBackToForm('fraud')`;
+            break;
+        case 'jira':
+            buttonText = 'Ask Another Question';
+            icon = '💬';
+            action = `goBackToForm('jira')`;
+            break;
+        default:
+            buttonText = 'Continue';
+            icon = '→';
+            action = `goBackToForm('jira')`;
+    }
+    
+    return `
+        <div style="margin-top: 25px; text-align: center; border-top: 1px solid #444; padding-top: 20px;">
+            <button onclick="${action}" 
+                    style="background: #000000; color: #ffffff; border: 1px solid #333; padding: 12px 24px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; font-size: 1rem; font-weight: 600; transition: all 0.2s; margin-right: 10px;"
+                    onmouseover="this.style.background='#333333'; this.style.transform='translateY(-2px)'"
+                    onmouseout="this.style.background='#000000'; this.style.transform='translateY(0)'">
+                <span>${icon}</span>
+                <span>${buttonText}</span>
+            </button>
+            
+            ${context !== 'jira' ? `
+                <button onclick="goBackToForm('jira')" 
+                        style="background: #333333; color: #ffffff; border: 1px solid #555; padding: 12px 24px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; font-size: 1rem; font-weight: 600; transition: all 0.2s;"
+                        onmouseover="this.style.background='#444444'; this.style.transform='translateY(-2px)'"
+                        onmouseout="this.style.background='#333333'; this.style.transform='translateY(0)'">
+                    <span>🏠</span>
+                    <span>Back to Home</span>
+                </button>
+            ` : ''}
+        </div>
+    `;
+}
+
+function goBackToForm(context) {
+    // Clear the chat container and restore the welcome message
+    const chatContainer = document.getElementById('chatContainer');
+    if (chatContainer) {
+        // Create the welcome message content
+        const welcomeContent = `
+            <div class="welcome-message">
+                <h2>Welcome to your Enhanced Jira AI Assistant! 👋</h2>
+                <p>Your Jira, Oracle DB, and Elasticsearch connections are configured and ready. Choose your operation:</p>
+                
+                <div class="feature-tabs">
+                    <button class="tab-button ${context === 'jira' ? 'active' : ''}" onclick="showTab('jira')">
+                        📋 Jira Queries
+                    </button>
+                    <button class="tab-button ${context === 'validation' ? 'active' : ''}" onclick="showTab('validation')">
+                        🔍 Order Validation
+                    </button>
+                    <button class="tab-button ${context === 'security' ? 'active' : ''}" onclick="showTab('security')">
+                        🛡️ Security Analysis
+                    </button>
+                    <button class="tab-button ${context === 'logs' ? 'active' : ''}" onclick="showTab('logs')">
+                        📊 Log Analysis
+                    </button>
+                </div>
+
+                <div class="tab-content ${context === 'jira' ? '' : 'hidden'}" id="jira-tab">
+                    <h3>Jira Query Examples</h3>
+                    <div class="example-queries">
+                        <div class="example-query" onclick="useExampleQuery(this)">
+                            <h4>📋 Find Stories by Assignee</h4>
+                            <p>Show me all stories assigned to John Smith</p>
+                        </div>
+                        <div class="example-query" onclick="useExampleQuery(this)">
+                            <h4>🐛 Search by Issue Type</h4>
+                            <p>Find all bugs in the DEV project</p>
+                        </div>
+                        <div class="example-query" onclick="useExampleQuery(this)">
+                            <h4>📈 Status Filtering</h4>
+                            <p>What are the open epics for this sprint?</p>
+                        </div>
+                        <div class="example-query" onclick="useExampleQuery(this)">
+                            <h4>📅 Date Range Queries</h4>
+                            <p>Show me stories created in the last week</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-content ${context === 'validation' ? '' : 'hidden'}" id="validation-tab">
+                    <h3>Order Validation</h3>
+                    <div class="validation-form">
+                        <div class="form-group">
+                            <label for="orderNumber">Order Number:</label>
+                            <input type="text" id="orderNumber" placeholder="e.g., ORD-123456, ORDER_789" maxlength="20">
+                        </div>
+                        <div class="form-group">
+                            <label for="locationCode">Location Code:</label>
+                            <input type="text" id="locationCode" placeholder="e.g., NYC, LA, CHI" maxlength="5">
+                        </div>
+                        <button class="validate-button" onclick="validateOrder()">
+                            🔍 Validate Order
+                        </button>
+                    </div>
+                </div>
+
+                <div class="tab-content ${context === 'security' ? '' : 'hidden'}" id="security-tab">
+                    <h3>Security Impact Analysis</h3>
+                    <div class="security-form">
+                        <div class="form-group">
+                            <label for="issueKey">Issue Key:</label>
+                            <input type="text" id="issueKey" placeholder="e.g., PROJ-123, DEV-456" maxlength="20">
+                        </div>
+                        <button class="analyze-button" onclick="analyzeIssueSecurity()">
+                            🛡️ Analyze Security Impact
+                        </button>
+                    </div>
+                </div>
+
+                <div class="tab-content ${context === 'logs' ? '' : 'hidden'}" id="logs-tab">
+                    <h3>Log Analysis Options</h3>
+                    <div class="log-analysis-options">
+                        <div class="log-option" onclick="showLogForm('3d-secure')">
+                            <div class="log-option-icon">🔐</div>
+                            <h4>3D Secure</h4>
+                            <p>Analyze 3D Secure authentication logs and transactions</p>
+                        </div>
+                        <div class="log-option" onclick="showLogForm('enforce-xml6')">
+                            <div class="log-option-icon">📋</div>
+                            <h4>Enforce XML6</h4>
+                            <p>Review XML6 enforcement logs and compliance data</p>
+                        </div>
+                        <div class="log-option" onclick="showLogForm('full-auth')">
+                            <div class="log-option-icon">🔑</div>
+                            <h4>Full Auth</h4>
+                            <p>Examine full authentication flow logs and results</p>
+                        </div>
+                        <div class="log-option" onclick="showLogForm('payment-gateway')">
+                            <div class="log-option-icon">💳</div>
+                            <h4>Payment Gateway</h4>
+                            <p>Analyze payment gateway transaction logs</p>
+                        </div>
+                        <div class="log-option" onclick="showLogForm('fraud-detection')">
+                            <div class="log-option-icon">🚨</div>
+                            <h4>Fraud Detection</h4>
+                            <p>Review fraud detection system logs and alerts</p>
+                        </div>
+                        <div class="log-option" onclick="showLogForm('api-gateway')">
+                            <div class="log-option-icon">🌐</div>
+                            <h4>API Gateway</h4>
+                            <p>Monitor API gateway access and performance logs</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        chatContainer.innerHTML = welcomeContent;
+        
+        // Make sure the correct tab is shown and input visibility is set
+        showTab(context);
+        
+        // Clear form inputs and query input based on context
+        if (context === 'validation') {
+            const orderNumber = document.getElementById('orderNumber');
+            const locationCode = document.getElementById('locationCode');
+            if (orderNumber) orderNumber.value = '';
+            if (locationCode) locationCode.value = '';
+        } else if (context === 'security') {
+            const issueKey = document.getElementById('issueKey');
+            if (issueKey) issueKey.value = '';
+        } else if (context === 'jira') {
+            const queryInput = document.getElementById('queryInput');
+            if (queryInput) {
+                queryInput.value = '';
+                queryInput.style.height = 'auto';
+            }
+        }
+        // Note: 'logs' context doesn't need form clearing since it shows option selection
+        
+        // Update current tab
+        currentTab = context;
+    }
+}
+
+// Update the addBackButton function to handle logs context:
+function addBackButton(context, extraInfo = '') {
+    let buttonText = '';
+    let icon = '';
+    
+    switch(context) {
+        case 'validation':
+            buttonText = 'Back to Order Validation';
+            icon = '🔍';
+            break;
+        case 'security':
+            buttonText = 'Back to Security Analysis';
+            icon = '🛡️';
+            break;
+        case 'logs':
+            buttonText = 'Back to Log Analysis';
+            icon = '📊';
+            break;
+        case 'jira':
+            buttonText = 'Back to Home';
+            icon = '🏠';
+            break;
+        default:
+            buttonText = 'Back';
+            icon = '←';
+    }
+    
+    if (extraInfo) {
+        buttonText += ` ${extraInfo}`;
+    }
+    
+    return `
+        <div style="margin-bottom: 20px;">
+            <button onclick="goBackToForm('${context}')" 
+                    style="background: #333333; color: #ffffff; border: 1px solid #555; padding: 10px 20px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 0.9rem; transition: all 0.2s;"
+                    onmouseover="this.style.background='#444444'; this.style.transform='translateY(-1px)'"
+                    onmouseout="this.style.background='#333333'; this.style.transform='translateY(0)'">
+                <span>${icon}</span>
+                <span>${buttonText}</span>
+            </button>
+        </div>
+    `;
+}
+
+// Update the addBottomActionButton function to handle logs context:
+function addBottomActionButton(context, resultInfo = '') {
+    let buttonText = '';
+    let icon = '';
+    let action = '';
+    
+    switch(context) {
+        case 'validation':
+            buttonText = 'Validate Another Order';
+            icon = '🔍';
+            action = `goBackToForm('validation')`;
+            break;
+        case 'security':
+            buttonText = 'Analyze Another Issue';
+            icon = '🛡️';
+            action = `goBackToForm('security')`;
+            break;
+        case 'logs':
+            buttonText = 'Search More Logs';
+            icon = '📊';
+            action = `goBackToForm('logs')`;
+            break;
+        case 'jira':
+            buttonText = 'Ask Another Question';
+            icon = '💬';
+            action = `goBackToForm('jira')`;
+            break;
+        default:
+            buttonText = 'Continue';
+            icon = '→';
+            action = `goBackToForm('jira')`;
+    }
+    
+    return `
+        <div style="margin-top: 25px; text-align: center; border-top: 1px solid #444; padding-top: 20px;">
+            <button onclick="${action}" 
+                    style="background: #000000; color: #ffffff; border: 1px solid #333; padding: 12px 24px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; font-size: 1rem; font-weight: 600; transition: all 0.2s; margin-right: 10px;"
+                    onmouseover="this.style.background='#333333'; this.style.transform='translateY(-2px)'"
+                    onmouseout="this.style.background='#000000'; this.style.transform='translateY(0)'">
+                <span>${icon}</span>
+                <span>${buttonText}</span>
+            </button>
+            
+            ${context !== 'jira' ? `
+                <button onclick="goBackToForm('jira')" 
+                        style="background: #333333; color: #ffffff; border: 1px solid #555; padding: 12px 24px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; font-size: 1rem; font-weight: 600; transition: all 0.2s;"
+                        onmouseover="this.style.background='#444444'; this.style.transform='translateY(-2px)'"
+                        onmouseout="this.style.background='#333333'; this.style.transform='translateY(0)'">
+                    <span>🏠</span>
+                    <span>Back to Home</span>
+                </button>
+            ` : ''}
+        </div>
+    `;
+}
