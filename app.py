@@ -438,6 +438,122 @@ def get_log_components(log_type):
                 'error': str(e)
             }), 500
 
+# Add these endpoints to app.py
+
+@app.route('/api/fraud-analysis', methods=['POST'])
+def api_fraud_analysis():
+    """API endpoint for comprehensive fraud analysis"""
+    
+    # Check if fraud analysis service is available
+    try:
+        from services.fraud_analysis_service import FraudAnalysisService
+        fraud_analysis_service = FraudAnalysisService()
+    except ImportError:
+        return jsonify({
+            'success': False,
+            'error': 'Fraud analysis service not available. Please check Elasticsearch configuration.'
+        }), 503
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Fraud analysis service initialization failed: {str(e)}'
+        }), 503
+        
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        if not data or not data.get('session_id') or not data.get('fraud_type'):
+            return jsonify({
+                'success': False,
+                'error': 'Missing required fields: session_id and fraud_type'
+            }), 400
+        
+        session_id = str(data['session_id']).strip()
+        fraud_type = str(data['fraud_type']).strip()
+        
+        # Validate fraud type
+        valid_fraud_types = ['digital_fraud', 'assisted_fraud', 'transaction_fraud', 'identity_fraud']
+        if fraud_type not in valid_fraud_types:
+            return jsonify({
+                'success': False,
+                'error': f'Invalid fraud type. Must be one of: {", ".join(valid_fraud_types)}'
+            }), 400
+        
+        # Perform fraud analysis
+        result = fraud_analysis_service.analyze_fraud_session(session_id, fraud_type)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Fraud analysis API error: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'Fraud analysis failed: {str(e)}'
+        }), 500
+
+@app.route('/api/fraud-types', methods=['GET'])
+def get_fraud_types():
+    """Get available fraud analysis types"""
+    try:
+        from services.fraud_analysis_service import FraudAnalysisService
+        fraud_analysis_service = FraudAnalysisService()
+        fraud_types = fraud_analysis_service.get_fraud_types()
+        
+        return jsonify({
+            'success': True,
+            'fraud_types': fraud_types
+        })
+    except Exception as e:
+        logger.error(f"Error getting fraud types: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/fraud-session-preview', methods=['POST'])
+def api_fraud_session_preview():
+    """Preview session data before full fraud analysis"""
+    try:
+        from services.fraud_analysis_service import FraudAnalysisService
+        fraud_analysis_service = FraudAnalysisService()
+        
+        data = request.get_json()
+        if not data or not data.get('session_id'):
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: session_id'
+            }), 400
+        
+        session_id = str(data['session_id']).strip()
+        
+        # Get basic session information
+        session_logs = fraud_analysis_service._gather_session_logs(session_id)
+        
+        # Quick classification
+        order_classification = fraud_analysis_service._classify_order_type(session_logs)
+        customer_type = fraud_analysis_service._determine_customer_type(session_logs)
+        
+        # Count logs by type
+        log_counts = {log_type: len(logs) for log_type, logs in session_logs.items()}
+        
+        return jsonify({
+            'success': True,
+            'session_id': session_id,
+            'log_counts': log_counts,
+            'total_logs': sum(log_counts.values()),
+            'order_classification': order_classification,
+            'customer_type': customer_type,
+            'has_data': sum(log_counts.values()) > 0
+        })
+        
+    except Exception as e:
+        logger.error(f"Fraud session preview error: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 if __name__ == '__main__':
     app = create_app()
     
