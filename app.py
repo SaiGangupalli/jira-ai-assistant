@@ -440,9 +440,11 @@ def get_log_components(log_type):
 
 # Add these endpoints to app.py
 
+# Add these endpoints to app.py
+
 @app.route('/api/fraud-analysis', methods=['POST'])
 def api_fraud_analysis():
-    """API endpoint for comprehensive fraud analysis"""
+    """API endpoint for comprehensive fraud analysis with AI-powered API call analysis"""
     
     # Check if fraud analysis service is available
     try:
@@ -451,7 +453,7 @@ def api_fraud_analysis():
     except ImportError:
         return jsonify({
             'success': False,
-            'error': 'Fraud analysis service not available. Please check Elasticsearch configuration.'
+            'error': 'Fraud analysis service not available. Please check Elasticsearch and OpenAI configuration.'
         }), 503
     except Exception as e:
         return jsonify({
@@ -480,8 +482,24 @@ def api_fraud_analysis():
                 'error': f'Invalid fraud type. Must be one of: {", ".join(valid_fraud_types)}'
             }), 400
         
-        # Perform fraud analysis
+        logger.info(f"Starting AI-powered fraud analysis for session: {session_id}, type: {fraud_type}")
+        
+        # Perform AI-enhanced fraud analysis
         result = fraud_analysis_service.analyze_fraud_session(session_id, fraud_type)
+        
+        # Add metadata about AI analysis
+        if result.get('success') and result.get('analysis'):
+            monitoring_analysis = result['analysis'].get('monitoring_analysis', {})
+            api_call_count = len(monitoring_analysis.get('api_call_analysis', []))
+            
+            result['metadata'] = {
+                'ai_analysis_enabled': True,
+                'api_calls_analyzed': api_call_count,
+                'analysis_timestamp': datetime.now().isoformat(),
+                'model_used': Config.OPENAI_MODEL
+            }
+            
+            logger.info(f"AI analysis completed: {api_call_count} API calls analyzed for session {session_id}")
         
         return jsonify(result)
         
@@ -489,20 +507,42 @@ def api_fraud_analysis():
         logger.error(f"Fraud analysis API error: {e}")
         return jsonify({
             'success': False,
-            'error': f'Fraud analysis failed: {str(e)}'
+            'error': f'Fraud analysis failed: {str(e)}',
+            'details': 'Check that OpenAI API key is configured and Elasticsearch is accessible'
         }), 500
 
 @app.route('/api/fraud-types', methods=['GET'])
 def get_fraud_types():
-    """Get available fraud analysis types"""
+    """Get available fraud analysis types with AI capabilities info"""
     try:
         from services.fraud_analysis_service import FraudAnalysisService
         fraud_analysis_service = FraudAnalysisService()
         fraud_types = fraud_analysis_service.get_fraud_types()
         
+        # Add AI capabilities info
+        for fraud_type in fraud_types.values():
+            fraud_type['ai_enabled'] = True
+            fraud_type['ai_features'] = [
+                'API call purpose analysis',
+                'Error pattern detection', 
+                'Risk indicator identification',
+                'Business impact assessment',
+                'Automated recommendations'
+            ]
+        
         return jsonify({
             'success': True,
-            'fraud_types': fraud_types
+            'fraud_types': fraud_types,
+            'ai_capabilities': {
+                'model': Config.OPENAI_MODEL,
+                'features': [
+                    'Real-time API call analysis',
+                    'Intelligent error categorization',
+                    'Risk pattern recognition',
+                    'Business impact scoring',
+                    'Actionable recommendations'
+                ]
+            }
         })
     except Exception as e:
         logger.error(f"Error getting fraud types: {e}")
@@ -513,7 +553,7 @@ def get_fraud_types():
 
 @app.route('/api/fraud-session-preview', methods=['POST'])
 def api_fraud_session_preview():
-    """Preview session data before full fraud analysis"""
+    """Preview session data before full AI-powered fraud analysis"""
     try:
         from services.fraud_analysis_service import FraudAnalysisService
         fraud_analysis_service = FraudAnalysisService()
@@ -527,6 +567,8 @@ def api_fraud_session_preview():
         
         session_id = str(data['session_id']).strip()
         
+        logger.info(f"Generating session preview for: {session_id}")
+        
         # Get basic session information
         session_logs = fraud_analysis_service._gather_session_logs(session_id)
         
@@ -534,21 +576,56 @@ def api_fraud_session_preview():
         order_classification = fraud_analysis_service._classify_order_type(session_logs)
         customer_type = fraud_analysis_service._determine_customer_type(session_logs)
         
-        # Count logs by type
+        # Count logs by type and identify API calls
         log_counts = {log_type: len(logs) for log_type, logs in session_logs.items()}
         
-        return jsonify({
+        # Count potential API calls for AI analysis
+        api_call_candidates = 0
+        for log_type, logs in session_logs.items():
+            for log in logs:
+                if (log.get('api_endpoint') or 
+                    log.get('http_method') or 
+                    log_type in ['api_gateway', 'payment_gateway'] or
+                    'api' in log.get('message', '').lower()):
+                    api_call_candidates += 1
+        
+        preview_result = {
             'success': True,
             'session_id': session_id,
             'log_counts': log_counts,
             'total_logs': sum(log_counts.values()),
+            'api_call_candidates': api_call_candidates,
             'order_classification': order_classification,
             'customer_type': customer_type,
-            'has_data': sum(log_counts.values()) > 0
-        })
+            'has_data': sum(log_counts.values()) > 0,
+            'ai_analysis_ready': api_call_candidates > 0,
+            'estimated_analysis_time': min(30 + (api_call_candidates * 2), 180)  # Seconds
+        }
+        
+        logger.info(f"Session preview completed: {api_call_candidates} API calls identified for AI analysis")
+        
+        return jsonify(preview_result)
         
     except Exception as e:
         logger.error(f"Fraud session preview error: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/fraud-analysis-status/<session_id>', methods=['GET'])
+def get_fraud_analysis_status(session_id):
+    """Get the status of an ongoing fraud analysis (for future async implementation)"""
+    try:
+        # This endpoint can be used for async analysis status tracking
+        # For now, return a simple status
+        return jsonify({
+            'success': True,
+            'session_id': session_id,
+            'status': 'completed',
+            'message': 'Analysis completed successfully'
+        })
+    except Exception as e:
         return jsonify({
             'success': False,
             'error': str(e)
