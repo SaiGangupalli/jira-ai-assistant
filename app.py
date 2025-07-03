@@ -8,6 +8,13 @@ import logging
 import json
 from datetime import datetime
 from enum import Enum
+try:
+    from services.fraud_analysis_service import FraudAnalysisService
+    fraud_analysis_service = FraudAnalysisService()
+    logger.info("Fraud Analysis service initialized successfully")
+except Exception as e:
+    logger.warning(f"Fraud Analysis service initialization failed: {e}")
+    fraud_analysis_service = None
 
 # Setup basic logging
 logging.basicConfig(
