@@ -1853,8 +1853,12 @@ function getLogConfig(logType) {
 }
 
 function escapeHtml(text) {
+    if (!text || text === null || text === undefined) {
+        return '';
+    }
+    
     const div = document.createElement('div');
-    div.textContent = text;
+    div.textContent = String(text);
     return div.innerHTML;
 }
 
@@ -2630,9 +2634,15 @@ function toggleLogDetails(index) {
 }
 
 function formatFullTimestamp(timestamp) {
-    if (!timestamp) return 'Unknown';
+    if (!timestamp || timestamp === null || timestamp === undefined) {
+        return 'Unknown';
+    }
+    
     try {
         const date = new Date(timestamp);
+        if (isNaN(date.getTime())) {
+            return 'Invalid Date';
+        }
         return date.toLocaleString('en-US', {
             year: 'numeric',
             month: 'short',
@@ -2642,8 +2652,9 @@ function formatFullTimestamp(timestamp) {
             second: '2-digit',
             timeZoneName: 'short'
         });
-    } catch {
-        return timestamp;
+    } catch (error) {
+        console.warn('Error formatting full timestamp:', timestamp, error);
+        return String(timestamp) || 'Unknown';
     }
 }
 
@@ -2923,14 +2934,17 @@ function createAIInsightsSummary(aiInsights) {
         `;
     }
     
+    const sessionScore = aiInsights.session_score || 50;
+    const scoreColor = getScoreColor(sessionScore);
+    
     return `
         <div style="background: linear-gradient(135deg, #1a2d1a, #2d3a2d); border: 1px solid #00ff88; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
-            <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 15px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                 <h5 style="color: #00ff88; margin: 0; display: flex; align-items: center; gap: 8px;">
                     🤖 AI Insights Summary
                 </h5>
-                <div style="background: ${getScoreColor(aiInsights.session_score)}20; color: ${getScoreColor(aiInsights.session_score)}; padding: 6px 12px; border-radius: 15px; font-size: 0.8rem; font-weight: 600; border: 1px solid ${getScoreColor(aiInsights.session_score)};">
-                    Session Score: ${aiInsights.session_score || 'N/A'}/100
+                <div style="background: ${scoreColor}20; color: ${scoreColor}; padding: 6px 12px; border-radius: 15px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; margin-left: 10px; border: 1px solid ${scoreColor};">
+                    Session Score: ${sessionScore}/100
                 </div>
             </div>
             
@@ -2950,7 +2964,7 @@ function createAIInsightsSummary(aiInsights) {
                     <strong style="color: #ffffff; display: block; margin-bottom: 8px;">🔍 Key Findings:</strong>
                     <div style="display: flex; flex-wrap: wrap; gap: 8px;">
                         ${aiInsights.key_findings.map(finding => 
-                            `<span style="background: #333; color: #fff; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; border: 1px solid #555;">${finding}</span>`
+                            `<span style="background: #333; color: #fff; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; border: 1px solid #555;">${finding || ''}</span>`
                         ).join('')}
                     </div>
                 </div>
@@ -2962,7 +2976,7 @@ function createAIInsightsSummary(aiInsights) {
                         <strong style="color: #ff4444; display: block; margin-bottom: 8px;">⚠️ Critical Issues:</strong>
                         <div style="font-size: 0.8rem;">
                             ${aiInsights.critical_issues.map(issue => 
-                                `<div style="color: #ff6666; margin: 4px 0;">• ${issue}</div>`
+                                `<div style="color: #ff6666; margin: 4px 0;">• ${issue || ''}</div>`
                             ).join('')}
                         </div>
                     </div>
@@ -2973,7 +2987,7 @@ function createAIInsightsSummary(aiInsights) {
                         <strong style="color: #00ff88; display: block; margin-bottom: 8px;">✅ Positive Indicators:</strong>
                         <div style="font-size: 0.8rem;">
                             ${aiInsights.positive_indicators.map(indicator => 
-                                `<div style="color: #66ff88; margin: 4px 0;">• ${indicator}</div>`
+                                `<div style="color: #66ff88; margin: 4px 0;">• ${indicator || ''}</div>`
                             ).join('')}
                         </div>
                     </div>
@@ -3042,7 +3056,8 @@ function createAPICallsTable(apiCallAnalysis) {
 }
 
 function createAPICallRow(analysis, index) {
-    const isSuccessful = analysis.is_successful;
+    // Null safety for all properties
+    const isSuccessful = analysis.is_successful !== false; // Default to true if undefined
     const statusColor = isSuccessful ? '#00ff88' : '#ff4444';
     const statusText = isSuccessful ? 'Success' : 'Failed';
     const statusIcon = isSuccessful ? '✅' : '❌';
@@ -3052,23 +3067,36 @@ function createAPICallRow(analysis, index) {
     const confidenceScore = Math.round((analysis.confidence_score || 0) * 100);
     const scoreColor = confidenceScore >= 80 ? '#00ff88' : confidenceScore >= 60 ? '#ffaa00' : '#ff4444';
     
+    // Safe property extraction with defaults
+    const endpoint = analysis.api_endpoint || 'Unknown';
+    const method = analysis.http_method || 'N/A';
+    const timestamp = analysis.timestamp || new Date().toISOString();
+    const component = analysis.component || '';
+    const purpose = analysis.request_purpose || 'Purpose not identified';
+    const responseAnalysis = analysis.response_analysis || 'No analysis available';
+    const riskIndicators = analysis.risk_indicators || [];
+    const statusCode = analysis.status_code || null;
+    const errorDetails = analysis.error_details || null;
+    const processingTime = analysis.processing_time_ms || null;
+    const fraudRelevance = analysis.fraud_relevance || '';
+    
     return `
         <tr class="${rowClass}" style="background: ${bgColor}; transition: background-color 0.2s;" 
             onmouseover="this.style.background='#333333'" 
             onmouseout="this.style.background='${bgColor}'">
             
             <td style="border: 1px solid #444; padding: 8px; color: #00ff88; font-family: monospace; font-size: 0.8rem;">
-                ${formatAPITimestamp(analysis.timestamp)}
+                ${formatAPITimestamp(timestamp)}
             </td>
             
             <td style="border: 1px solid #444; padding: 8px; color: #88ccff; font-family: monospace; max-width: 200px; overflow: hidden; text-overflow: ellipsis;">
-                <div title="${analysis.api_endpoint || 'Unknown'}">${truncateText(analysis.api_endpoint || 'Unknown', 25)}</div>
-                ${analysis.component ? `<small style="color: #888; font-size: 0.7rem;">${analysis.component}</small>` : ''}
+                <div title="${escapeHtml(endpoint)}">${truncateText(endpoint, 25)}</div>
+                ${component ? `<small style="color: #888; font-size: 0.7rem;">${escapeHtml(component)}</small>` : ''}
             </td>
             
             <td style="border: 1px solid #444; padding: 8px; text-align: center;">
-                <span style="background: ${getHttpMethodColor(analysis.http_method)}20; color: ${getHttpMethodColor(analysis.http_method)}; padding: 3px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 600;">
-                    ${analysis.http_method || 'N/A'}
+                <span style="background: ${getHttpMethodColor(method)}20; color: ${getHttpMethodColor(method)}; padding: 3px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 600;">
+                    ${escapeHtml(method)}
                 </span>
             </td>
             
@@ -3076,46 +3104,46 @@ function createAPICallRow(analysis, index) {
                 <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
                     <span style="color: ${statusColor}; font-size: 1rem;">${statusIcon}</span>
                     <span style="color: ${statusColor}; font-size: 0.7rem; font-weight: 600;">${statusText}</span>
-                    ${analysis.status_code ? `<span style="color: #888; font-size: 0.6rem;">${analysis.status_code}</span>` : ''}
+                    ${statusCode ? `<span style="color: #888; font-size: 0.6rem;">${statusCode}</span>` : ''}
                 </div>
             </td>
             
             <td style="border: 1px solid #444; padding: 8px; color: #ffffff; max-width: 250px;">
                 <div style="font-size: 0.8rem; line-height: 1.3;">
-                    ${truncateText(analysis.request_purpose || 'Purpose not identified', 40)}
+                    ${truncateText(purpose, 40)}
                 </div>
-                ${analysis.fraud_relevance ? `
+                ${fraudRelevance ? `
                     <div style="margin-top: 4px; font-size: 0.7rem; color: #ffaa88; font-style: italic;">
-                        ${truncateText(analysis.fraud_relevance, 50)}
+                        ${truncateText(fraudRelevance, 50)}
                     </div>
                 ` : ''}
             </td>
             
             <td style="border: 1px solid #444; padding: 8px; color: #cccccc; max-width: 250px;">
                 <div style="font-size: 0.8rem; line-height: 1.3;">
-                    ${truncateText(analysis.response_analysis || 'No analysis available', 60)}
+                    ${truncateText(responseAnalysis, 60)}
                 </div>
-                ${analysis.error_details ? `
+                ${errorDetails ? `
                     <div style="margin-top: 4px; padding: 4px; background: #2d1a1a; border-radius: 4px; border-left: 2px solid #ff4444;">
-                        <span style="font-size: 0.7rem; color: #ff6666;">Error: ${truncateText(analysis.error_details, 50)}</span>
+                        <span style="font-size: 0.7rem; color: #ff6666;">Error: ${truncateText(errorDetails, 50)}</span>
                     </div>
                 ` : ''}
-                ${analysis.processing_time_ms ? `
+                ${processingTime ? `
                     <div style="margin-top: 4px; font-size: 0.7rem; color: #888;">
-                        ⏱️ ${analysis.processing_time_ms}ms
+                        ⏱️ ${processingTime}ms
                     </div>
                 ` : ''}
             </td>
             
             <td style="border: 1px solid #444; padding: 8px; color: #ffffff;">
-                ${analysis.risk_indicators && analysis.risk_indicators.length > 0 ? `
+                ${riskIndicators.length > 0 ? `
                     <div style="display: flex; flex-wrap: wrap; gap: 2px;">
-                        ${analysis.risk_indicators.slice(0, 3).map(indicator => 
-                            `<span style="background: #ff444420; color: #ff6666; padding: 2px 4px; border-radius: 6px; font-size: 0.6rem; border: 1px solid #ff4444;" title="${indicator}">
+                        ${riskIndicators.slice(0, 3).map(indicator => 
+                            `<span style="background: #ff444420; color: #ff6666; padding: 2px 4px; border-radius: 6px; font-size: 0.6rem; border: 1px solid #ff4444;" title="${escapeHtml(indicator)}">
                                 ${truncateText(indicator, 10)}
                             </span>`
                         ).join('')}
-                        ${analysis.risk_indicators.length > 3 ? `<span style="color: #888; font-size: 0.6rem;">+${analysis.risk_indicators.length - 3}</span>` : ''}
+                        ${riskIndicators.length > 3 ? `<span style="color: #888; font-size: 0.6rem;">+${riskIndicators.length - 3}</span>` : ''}
                     </div>
                 ` : `
                     <span style="color: #00ff88; font-size: 0.7rem; font-style: italic;">No risks detected</span>
@@ -3337,9 +3365,15 @@ function getLogLevelColor(level) {
 }
 
 function formatAPITimestamp(timestamp) {
-    if (!timestamp) return 'Unknown';
+    if (!timestamp || timestamp === null || timestamp === undefined) {
+        return 'Unknown';
+    }
+    
     try {
         const date = new Date(timestamp);
+        if (isNaN(date.getTime())) {
+            return 'Invalid Date';
+        }
         return date.toLocaleString('en-US', {
             month: 'short',
             day: '2-digit',
@@ -3348,15 +3382,23 @@ function formatAPITimestamp(timestamp) {
             second: '2-digit',
             hour12: false
         });
-    } catch {
-        return timestamp.substring(0, 16);
+    } catch (error) {
+        console.warn('Error formatting timestamp:', timestamp, error);
+        return String(timestamp).substring(0, 16) || 'Unknown';
     }
 }
 
 function truncateText(text, maxLength) {
-    if (!text || text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
-}// Add test functions to help debug the AI analysis display
+    if (!text || text === null || text === undefined) {
+        return '';
+    }
+    
+    const textStr = String(text);
+    if (textStr.length <= maxLength) {
+        return textStr;
+    }
+    return textStr.substring(0, maxLength) + '...';
+}
 
 async function testFraudAnalysisDisplay() {
     console.log('Testing fraud analysis display with mock data...');
@@ -3871,8 +3913,26 @@ async function analyzeFraudSession(fraudType) {
     // Show loading state
     if (analyzeBtn) {
         analyzeBtn.disabled = true;
-        analyzeBtn.innerHTML = '<span>🔄</span><span>Analyzing...</span>';
+        analyzeBtn.innerHTML = '<span>🔄</span><span>AI Analysis in Progress...</span>';
     }
+    
+    // Add loading message about AI analysis
+    const loadingMessage = addMessage(`
+        <div style="text-align: center; padding: 20px; background: #1a2d1a; border-radius: 8px; border: 1px solid #00ff88;">
+            <div style="font-size: 2rem; margin-bottom: 10px;">🤖</div>
+            <h4 style="color: #00ff88; margin-bottom: 10px;">AI-Powered Fraud Analysis in Progress</h4>
+            <p style="color: #cccccc; margin-bottom: 15px;">Analyzing session logs with Gen AI...</p>
+            <div style="background: #2d2d30; padding: 10px; border-radius: 6px; font-size: 0.8rem; color: #888;">
+                <div>• Gathering logs from all sources</div>
+                <div>• Classifying order and customer type</div>
+                <div>• AI analyzing each API call</div>
+                <div>• Generating insights and recommendations</div>
+            </div>
+            <div style="margin-top: 15px;">
+                <div class="loading-spinner" style="margin: 0 auto;"></div>
+            </div>
+        </div>
+    `, false);
     
     try {
         console.log('Sending fraud analysis request:', { session_id: sessionId, fraud_type: fraudType });
@@ -3890,16 +3950,60 @@ async function analyzeFraudSession(fraudType) {
 
         const result = await response.json();
         console.log('Fraud analysis result:', result);
+        
+        // Remove loading message
+        if (loadingMessage) {
+            loadingMessage.remove();
+        }
 
         if (result.success) {
+            // Add debug info to result
+            console.log('AI Analysis successful. API calls analyzed:', result.analysis?.monitoring_analysis?.api_call_analysis?.length || 0);
             displayFraudResults(result);
         } else {
-            addMessage(`<div class="error-message">❌ Error: ${result.error}</div>`, false);
+            addMessage(`
+                <div class="error-message">
+                    <h4>❌ Fraud Analysis Failed</h4>
+                    <p><strong>Error:</strong> ${result.error || 'Unknown error'}</p>
+                    ${result.details ? `<p><strong>Details:</strong> ${result.details}</p>` : ''}
+                    <div style="margin-top: 15px; padding: 10px; background: #2d2d30; border-radius: 6px; font-size: 0.8rem;">
+                        <strong>Troubleshooting Tips:</strong>
+                        <ul style="margin: 8px 0 0 20px;">
+                            <li>Verify the session ID exists in your logs</li>
+                            <li>Check that OpenAI API key is configured</li>
+                            <li>Ensure Elasticsearch is accessible</li>
+                            <li>Try with a different session ID</li>
+                        </ul>
+                    </div>
+                    ${addBottomActionButton('fraud')}
+                </div>
+            `, false);
         }
         
     } catch (error) {
         console.error('Fraud analysis error:', error);
-        addMessage(`<div class="error-message">❌ Network Error: ${error.message}</div>`, false);
+        
+        // Remove loading message
+        if (loadingMessage) {
+            loadingMessage.remove();
+        }
+        
+        addMessage(`
+            <div class="error-message">
+                <h4>❌ Network Error</h4>
+                <p><strong>Error:</strong> ${error.message || 'Network request failed'}</p>
+                <div style="margin-top: 15px; padding: 10px; background: #2d2d30; border-radius: 6px; font-size: 0.8rem;">
+                    <strong>Common Issues:</strong>
+                    <ul style="margin: 8px 0 0 20px;">
+                        <li>Server connection timeout</li>
+                        <li>OpenAI API rate limits</li>
+                        <li>Large session data taking longer to process</li>
+                        <li>JavaScript parsing error in response</li>
+                    </ul>
+                </div>
+                ${addBottomActionButton('fraud')}
+            </div>
+        `, false);
     } finally {
         if (analyzeBtn) {
             analyzeBtn.disabled = false;
@@ -3912,37 +4016,61 @@ async function analyzeFraudSession(fraudType) {
 function displayFraudResults(result) {
     console.log('Displaying fraud results:', result);
     
-    const analysis = result.analysis;
-    const fraudConfig = getFraudConfig(result.fraud_type);
-    const riskLevel = analysis.risk_assessment;
-    
-    const fraudResultsHtml = `
-        ${addBackButton('fraud')}
+    try {
+        // Validate result structure
+        if (!result || !result.analysis) {
+            throw new Error('Invalid fraud analysis result structure');
+        }
         
-        <div class="fraud-results">
-            <div class="fraud-results-header">
-                <h3>
-                    <span>${fraudConfig.icon}</span>
-                    <span>${fraudConfig.title}: ${result.session_id}</span>
-                </h3>
-                <div class="fraud-risk-badge fraud-risk-${riskLevel.level.toLowerCase()}">
-                    ${riskLevel.level} RISK (${Math.round(riskLevel.score)}/100)
+        const analysis = result.analysis;
+        const fraudConfig = getFraudConfig(result.fraud_type);
+        const riskLevel = analysis.risk_assessment || { level: 'UNKNOWN', score: 0, color: '#888888', factors: [] };
+        
+        // Store the result globally for debugging
+        window.currentFraudAnalysis = result;
+        
+        const fraudResultsHtml = `
+            ${addBackButton('fraud')}
+            
+            <div class="fraud-results">
+                <div class="fraud-results-header">
+                    <h3>
+                        <span>${fraudConfig.icon}</span>
+                        <span>${fraudConfig.title}: ${result.session_id || 'Unknown Session'}</span>
+                    </h3>
+                    <div class="fraud-risk-badge fraud-risk-${riskLevel.level.toLowerCase()}">
+                        ${riskLevel.level} RISK (${Math.round(riskLevel.score || 0)}/100)
+                    </div>
                 </div>
+                
+                ${createFraudOverviewSection(analysis)}
+                ${createFraudOrderSection(analysis.order_classification, analysis.customer_type)}
+                ${createFraudMonitoringSection(analysis.monitoring_analysis)}
+                ${createFraudRiskSection(analysis.risk_assessment)}
+                ${createFraudRecommendationsSection(analysis.recommendations)}
+                ${createFraudTimelineSection(analysis.timeline)}
+                ${createFraudStatisticsSection(analysis.statistics)}
             </div>
             
-            ${createFraudOverviewSection(analysis)}
-            ${createFraudOrderSection(analysis.order_classification, analysis.customer_type)}
-            ${createFraudMonitoringSection(analysis.monitoring_analysis)}
-            ${createFraudRiskSection(analysis.risk_assessment)}
-            ${createFraudRecommendationsSection(analysis.recommendations)}
-            ${createFraudTimelineSection(analysis.timeline)}
-            ${createFraudStatisticsSection(analysis.statistics)}
-        </div>
+            ${addBottomActionButton('fraud', `Risk Level: ${riskLevel.level}`)}
+        `;
         
-        ${addBottomActionButton('fraud', `Risk Level: ${riskLevel.level}`)}
-    `;
-    
-    addMessage(fraudResultsHtml, false);
+        addMessage(fraudResultsHtml, false);
+        
+    } catch (error) {
+        console.error('Error displaying fraud results:', error);
+        addMessage(`
+            <div class="error-message">
+                <h4>❌ Display Error</h4>
+                <p><strong>Error:</strong> ${error.message}</p>
+                <div style="margin-top: 15px; padding: 10px; background: #2d2d30; border-radius: 6px; font-size: 0.8rem;">
+                    <strong>Debug Info:</strong>
+                    <pre style="color: #ccc; margin-top: 5px;">${JSON.stringify(result, null, 2).substring(0, 500)}...</pre>
+                </div>
+                ${addBottomActionButton('fraud')}
+            </div>
+        `, false);
+    }
 }
 
 function createFraudOverviewSection(analysis) {
@@ -4014,72 +4142,55 @@ function createFraudOrderSection(orderClassification, customerType) {
 }
 
 function createFraudMonitoringSection(monitoringAnalysis) {
-    const triggeredCalls = monitoringAnalysis.triggered_calls || {};
-    const callSequence = monitoringAnalysis.call_sequence || [];
+    if (!monitoringAnalysis) {
+        return `
+            <div class="fraud-section">
+                <h4>🔍 Fraud Monitoring Analysis</h4>
+                <div style="text-align: center; padding: 20px; background: #2d2d30; border-radius: 8px; color: #888;">
+                    No monitoring analysis data available
+                </div>
+            </div>
+        `;
+    }
+    
+    const apiCallAnalysis = monitoringAnalysis.api_call_analysis || [];
+    const aiInsights = monitoringAnalysis.ai_insights || {};
+    const summaryStats = monitoringAnalysis.summary_statistics || {};
     
     let monitoringHtml = `
         <div class="fraud-section">
-            <h4>🔍 Fraud Monitoring Analysis</h4>
-            <div style="margin-bottom: 15px;">
-                <strong style="color: #ffaa00;">Monitoring Categories Triggered:</strong>
+            <h4>🔍 AI-Powered API Call Analysis</h4>
+            
+            <!-- Summary Statistics -->
+            <div class="fraud-grid" style="margin-bottom: 20px;">
+                <div class="fraud-metric">
+                    <div class="fraud-metric-value" style="color: #88ccff;">${summaryStats.total_api_calls || 0}</div>
+                    <div class="fraud-metric-label">Total API Calls</div>
+                </div>
+                <div class="fraud-metric">
+                    <div class="fraud-metric-value" style="color: #00ff88;">${summaryStats.successful_calls || 0}</div>
+                    <div class="fraud-metric-label">Successful</div>
+                </div>
+                <div class="fraud-metric">
+                    <div class="fraud-metric-value" style="color: #ff4444;">${summaryStats.failed_calls || 0}</div>
+                    <div class="fraud-metric-label">Failed</div>
+                </div>
+                <div class="fraud-metric">
+                    <div class="fraud-metric-value" style="color: ${(summaryStats.success_rate || 0) >= 0.8 ? '#00ff88' : (summaryStats.success_rate || 0) >= 0.6 ? '#ffaa00' : '#ff4444'};">
+                        ${Math.round((summaryStats.success_rate || 0) * 100)}%
+                    </div>
+                    <div class="fraud-metric-label">Success Rate</div>
+                </div>
             </div>
+            
+            <!-- AI Insights Summary -->
+            ${createAIInsightsSummary(aiInsights)}
+            
+            <!-- API Calls Table -->
+            ${createAPICallsTable(apiCallAnalysis)}
+        </div>
     `;
     
-    if (Object.keys(triggeredCalls).length === 0) {
-        monitoringHtml += `
-            <div style="text-align: center; padding: 20px; background: #2d2d30; border-radius: 8px; color: #888;">
-                No fraud monitoring calls detected in the logs
-            </div>
-        `;
-    } else {
-        monitoringHtml += '<div class="fraud-grid">';
-        
-        Object.entries(triggeredCalls).forEach(([category, calls]) => {
-            const successCount = calls.filter(call => call.success).length;
-            const totalCount = calls.length;
-            const successRate = totalCount > 0 ? (successCount / totalCount) : 0;
-            const categoryColor = successRate >= 0.8 ? '#00ff88' : successRate >= 0.6 ? '#ffaa00' : '#ff4444';
-            
-            monitoringHtml += `
-                <div style="background: #2d2d30; border: 1px solid #444; border-radius: 6px; padding: 15px;">
-                    <strong style="color: ${categoryColor};">${category.replace('_', ' ').toUpperCase()}</strong>
-                    <div style="margin-top: 8px;">
-                        <div style="font-size: 1.2rem; color: ${categoryColor}; margin-bottom: 5px;">${successCount}/${totalCount}</div>
-                        <div style="font-size: 0.8rem; color: #ccc;">Success Rate: ${Math.round(successRate * 100)}%</div>
-                        <div style="margin-top: 8px;">
-                            ${calls.map(call => 
-                                `<div style="font-size: 0.7rem; color: ${call.success ? '#00ff88' : '#ff4444'}; margin: 2px 0;">
-                                    ${call.success ? '✅' : '❌'} ${call.call_type}
-                                </div>`
-                            ).join('')}
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-        
-        monitoringHtml += '</div>';
-    }
-    
-    // Add failed calls section if any
-    const failedCalls = monitoringAnalysis.failed_calls || [];
-    if (failedCalls.length > 0) {
-        monitoringHtml += `
-            <div style="margin-top: 20px; padding: 15px; background: #2d1a1a; border-radius: 8px; border-left: 4px solid #ff4444;">
-                <strong style="color: #ff4444;">⚠️ Failed Monitoring Calls (${failedCalls.length}):</strong>
-                <div style="margin-top: 10px;">
-                    ${failedCalls.slice(0, 5).map(call => `
-                        <div style="font-size: 0.8rem; color: #ff6666; margin: 5px 0; padding: 8px; background: #331a1a; border-radius: 4px;">
-                            <strong>${call.category}</strong>: ${call.call_type} - ${call.message.substring(0, 100)}${call.message.length > 100 ? '...' : ''}
-                        </div>
-                    `).join('')}
-                    ${failedCalls.length > 5 ? `<div style="color: #888; font-size: 0.8rem; margin-top: 5px;">... and ${failedCalls.length - 5} more</div>` : ''}
-                </div>
-            </div>
-        `;
-    }
-    
-    monitoringHtml += '</div>';
     return monitoringHtml;
 }
 
