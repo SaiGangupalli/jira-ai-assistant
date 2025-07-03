@@ -250,84 +250,315 @@ class FraudAnalysisService:
         return customer_analysis
 
     def _analyze_fraud_monitoring_calls(self, session_logs: Dict[str, List], fraud_type: str) -> Dict[str, Any]:
-        """Analyze which fraud monitoring calls were triggered and their results"""
+        """Analyze which fraud monitoring calls were triggered and their results using Gen AI"""
         monitoring_analysis = {
-            'triggered_calls': {},
+            'api_call_analysis': [],
             'success_rate': 0.0,
             'failed_calls': [],
-            'call_sequence': [],
-            'risk_scores': [],
-            'decisions': []
+            'ai_insights': {},
+            'summary_statistics': {}
         }
         
-        # Focus on fraud detection logs
-        fraud_logs = session_logs.get('fraud_detection', [])
+        # Collect all API-related logs from different sources
+        all_api_logs = []
         
-        if not fraud_logs:
+        # Get API Gateway logs (main source for API calls)
+        api_gateway_logs = session_logs.get('api_gateway', [])
+        fraud_logs = session_logs.get('fraud_detection', [])
+        payment_logs = session_logs.get('payment_gateway', [])
+        auth_logs = session_logs.get('full_auth', [])
+        
+        # Combine all logs and sort by timestamp
+        combined_logs = []
+        for log_type, logs in [('api_gateway', api_gateway_logs), ('fraud_detection', fraud_logs), 
+                              ('payment_gateway', payment_logs), ('full_auth', auth_logs)]:
+            for log in logs:
+                log['source_type'] = log_type
+                combined_logs.append(log)
+        
+        # Sort by timestamp
+        combined_logs.sort(key=lambda x: x.get('timestamp', ''))
+        
+        if not combined_logs:
             return monitoring_analysis
         
+        # Process each API call/log entry
         total_calls = 0
         successful_calls = 0
         
-        for log_entry in fraud_logs:
-            # Extract call information
-            call_info = {
-                'timestamp': log_entry.get('timestamp'),
-                'message': log_entry.get('message', ''),
-                'level': log_entry.get('level', 'INFO'),
-                'component': log_entry.get('component', ''),
-                'success': False
-            }
+        for log_entry in combined_logs:
+            # Analyze each log entry with Gen AI
+            ai_analysis = self._analyze_api_call_with_ai(log_entry, fraud_type)
             
-            # Determine which monitoring category this call belongs to
-            message_lower = call_info['message'].lower()
-            component_lower = call_info['component'].lower()
-            
-            for category, call_types in self.fraud_monitoring_calls.items():
-                for call_type in call_types:
-                    if call_type in message_lower or call_type in component_lower:
-                        if category not in monitoring_analysis['triggered_calls']:
-                            monitoring_analysis['triggered_calls'][category] = []
-                        
-                        # Determine success/failure
-                        call_info['success'] = self._determine_call_success(log_entry)
-                        call_info['call_type'] = call_type
-                        call_info['category'] = category
-                        
-                        monitoring_analysis['triggered_calls'][category].append(call_info)
-                        monitoring_analysis['call_sequence'].append(call_info)
-                        
-                        total_calls += 1
-                        if call_info['success']:
-                            successful_calls += 1
-                        else:
-                            monitoring_analysis['failed_calls'].append(call_info)
-                        
-                        break
-            
-            # Extract risk scores and decisions
-            if log_entry.get('risk_score') is not None:
-                monitoring_analysis['risk_scores'].append({
-                    'score': log_entry['risk_score'],
-                    'timestamp': log_entry.get('timestamp')
-                })
-            
-            if log_entry.get('decision'):
-                monitoring_analysis['decisions'].append({
-                    'decision': log_entry['decision'],
-                    'timestamp': log_entry.get('timestamp')
-                })
+            if ai_analysis:
+                monitoring_analysis['api_call_analysis'].append(ai_analysis)
+                total_calls += 1
+                
+                if ai_analysis.get('is_successful', False):
+                    successful_calls += 1
+                else:
+                    monitoring_analysis['failed_calls'].append(ai_analysis)
         
         # Calculate success rate
         if total_calls > 0:
             monitoring_analysis['success_rate'] = successful_calls / total_calls
         
-        # Sort sequences by timestamp
-        monitoring_analysis['call_sequence'].sort(key=lambda x: x.get('timestamp', ''))
-        monitoring_analysis['risk_scores'].sort(key=lambda x: x.get('timestamp', ''))
-        monitoring_analysis['decisions'].sort(key=lambda x: x.get('timestamp', ''))
+        # Generate AI insights summary
+        monitoring_analysis['ai_insights'] = self._generate_ai_insights_summary(
+            monitoring_analysis['api_call_analysis'], fraud_type
+        )
+        
+        # Generate summary statistics
+        monitoring_analysis['summary_statistics'] = {
+            'total_api_calls': total_calls,
+            'successful_calls': successful_calls,
+            'failed_calls': len(monitoring_analysis['failed_calls']),
+            'success_rate': monitoring_analysis['success_rate'],
+            'unique_endpoints': len(set(call.get('api_endpoint', '') for call in monitoring_analysis['api_call_analysis'])),
+            'error_types': self._categorize_error_types(monitoring_analysis['failed_calls'])
+        }
         
         return monitoring_analysis
+
+    def _analyze_api_call_with_ai(self, log_entry: Dict, fraud_type: str) -> Dict[str, Any]:
+        """Use Gen AI to analyze individual API calls"""
+        try:
+            import openai
+            
+            # Prepare the log context for AI analysis
+            log_context = self._prepare_log_context_for_ai(log_entry)
+            
+            prompt = f"""
+            You are a fraud analysis expert examining API logs. Analyze this API call/log entry and provide insights.
+            
+            Fraud Analysis Type: {fraud_type}
+            Log Entry Context:
+            {log_context}
+            
+            Please analyze this API call and provide a JSON response with the following structure:
+            {{
+                "api_endpoint": "extracted endpoint or service name",
+                "http_method": "HTTP method if available",
+                "request_purpose": "what this API call is trying to accomplish",
+                "response_analysis": "analysis of the response/outcome",
+                "is_successful": true/false,
+                "error_details": "error description if failed, null if successful",
+                "fraud_relevance": "how this relates to fraud detection/prevention",
+                "risk_indicators": ["list", "of", "potential", "risk", "indicators"],
+                "business_impact": "potential business impact of this call",
+                "recommendations": "specific recommendations for this API call",
+                "processing_time_ms": extracted_time_if_available,
+                "status_code": extracted_status_code_if_available,
+                "confidence_score": 0.0-1.0
+            }}
+            
+            Focus on:
+            1. Whether the API call succeeded or failed
+            2. What fraud monitoring/prevention purpose it serves
+            3. Any error patterns or issues
+            4. Risk indicators or suspicious patterns
+            5. Business impact and recommendations
+            """
+            
+            response = openai.ChatCompletion.create(
+                model=Config.OPENAI_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+                max_tokens=800
+            )
+            
+            ai_response = response.choices[0].message.content.strip()
+            
+            # Parse the AI response
+            try:
+                analysis = json.loads(ai_response)
+                
+                # Add original log metadata
+                analysis.update({
+                    'timestamp': log_entry.get('timestamp'),
+                    'log_level': log_entry.get('level', 'INFO'),
+                    'source_type': log_entry.get('source_type', 'unknown'),
+                    'session_id': log_entry.get('session_id'),
+                    'original_message': log_entry.get('message', '')[:200],  # Truncate for display
+                    'component': log_entry.get('component', ''),
+                    'raw_log_id': log_entry.get('id', '')
+                })
+                
+                return analysis
+                
+            except json.JSONDecodeError:
+                # Fallback if AI doesn't return valid JSON
+                return self._create_fallback_analysis(log_entry, ai_response)
+                
+        except Exception as e:
+            logger.error(f"Error in AI analysis for log entry: {e}")
+            return self._create_fallback_analysis(log_entry, f"AI analysis failed: {str(e)}")
+
+    def _prepare_log_context_for_ai(self, log_entry: Dict) -> str:
+        """Prepare log entry context for AI analysis"""
+        context_parts = []
+        
+        # Basic log information
+        context_parts.append(f"Timestamp: {log_entry.get('timestamp', 'Unknown')}")
+        context_parts.append(f"Log Level: {log_entry.get('level', 'INFO')}")
+        context_parts.append(f"Source: {log_entry.get('source_type', 'Unknown')}")
+        context_parts.append(f"Component: {log_entry.get('component', 'Unknown')}")
+        
+        # Message content
+        message = log_entry.get('message', '')
+        if message:
+            context_parts.append(f"Message: {message}")
+        
+        # API-specific fields
+        if log_entry.get('api_endpoint'):
+            context_parts.append(f"API Endpoint: {log_entry['api_endpoint']}")
+        if log_entry.get('http_method'):
+            context_parts.append(f"HTTP Method: {log_entry['http_method']}")
+        if log_entry.get('status_code'):
+            context_parts.append(f"Status Code: {log_entry['status_code']}")
+        if log_entry.get('response_time'):
+            context_parts.append(f"Response Time: {log_entry['response_time']}ms")
+        
+        # Fraud-specific fields
+        if log_entry.get('risk_score') is not None:
+            context_parts.append(f"Risk Score: {log_entry['risk_score']}")
+        if log_entry.get('decision'):
+            context_parts.append(f"Decision: {log_entry['decision']}")
+        if log_entry.get('auth_result'):
+            context_parts.append(f"Auth Result: {log_entry['auth_result']}")
+        if log_entry.get('gateway_response'):
+            context_parts.append(f"Gateway Response: {log_entry['gateway_response']}")
+        
+        # Payment-specific fields
+        if log_entry.get('amount'):
+            context_parts.append(f"Amount: {log_entry['amount']} {log_entry.get('currency', '')}")
+        if log_entry.get('payment_id'):
+            context_parts.append(f"Payment ID: {log_entry['payment_id']}")
+        
+        # Additional context from raw data
+        if log_entry.get('raw_data') and isinstance(log_entry['raw_data'], dict):
+            for key, value in log_entry['raw_data'].items():
+                if key not in ['message', 'timestamp', 'level'] and value:
+                    context_parts.append(f"{key}: {value}")
+        
+        return '\n'.join(context_parts)
+
+    def _create_fallback_analysis(self, log_entry: Dict, ai_response: str) -> Dict[str, Any]:
+        """Create fallback analysis when AI analysis fails"""
+        return {
+            'api_endpoint': log_entry.get('api_endpoint') or log_entry.get('component', 'Unknown'),
+            'http_method': log_entry.get('http_method', 'Unknown'),
+            'request_purpose': 'Analysis unavailable',
+            'response_analysis': ai_response[:200] if ai_response else 'No analysis available',
+            'is_successful': log_entry.get('level', '').lower() not in ['error', 'fatal'],
+            'error_details': None if log_entry.get('level', '').lower() not in ['error', 'fatal'] else log_entry.get('message', 'Unknown error'),
+            'fraud_relevance': 'Requires manual review',
+            'risk_indicators': [],
+            'business_impact': 'Unknown',
+            'recommendations': 'Manual review recommended',
+            'processing_time_ms': log_entry.get('response_time'),
+            'status_code': log_entry.get('status_code'),
+            'confidence_score': 0.3,
+            'timestamp': log_entry.get('timestamp'),
+            'log_level': log_entry.get('level', 'INFO'),
+            'source_type': log_entry.get('source_type', 'unknown'),
+            'session_id': log_entry.get('session_id'),
+            'original_message': log_entry.get('message', '')[:200],
+            'component': log_entry.get('component', ''),
+            'raw_log_id': log_entry.get('id', '')
+        }
+
+    def _generate_ai_insights_summary(self, api_analyses: List[Dict], fraud_type: str) -> Dict[str, Any]:
+        """Generate AI-powered insights summary from all API analyses"""
+        try:
+            import openai
+            
+            # Prepare summary data for AI
+            summary_data = []
+            for analysis in api_analyses:
+                summary_data.append({
+                    'endpoint': analysis.get('api_endpoint', 'Unknown'),
+                    'success': analysis.get('is_successful', False),
+                    'purpose': analysis.get('request_purpose', ''),
+                    'fraud_relevance': analysis.get('fraud_relevance', ''),
+                    'risk_indicators': analysis.get('risk_indicators', [])
+                })
+            
+            prompt = f"""
+            You are a fraud analysis expert reviewing a complete session analysis. Based on the API call analyses below, provide high-level insights.
+            
+            Fraud Type: {fraud_type}
+            API Call Summary: {json.dumps(summary_data, indent=2)}
+            
+            Provide a JSON response with:
+            {{
+                "overall_session_health": "assessment of the session",
+                "key_findings": ["finding1", "finding2", "finding3"],
+                "fraud_risk_assessment": "overall fraud risk evaluation",
+                "critical_issues": ["issue1", "issue2"],
+                "positive_indicators": ["indicator1", "indicator2"],
+                "recommended_actions": ["action1", "action2"],
+                "session_score": 0-100,
+                "confidence_level": "high/medium/low"
+            }}
+            """
+            
+            response = openai.ChatCompletion.create(
+                model=Config.OPENAI_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+                max_tokens=600
+            )
+            
+            return json.loads(response.choices[0].message.content.strip())
+            
+        except Exception as e:
+            logger.error(f"Error generating AI insights summary: {e}")
+            return {
+                "overall_session_health": "Analysis unavailable",
+                "key_findings": ["AI analysis failed"],
+                "fraud_risk_assessment": "Manual review required",
+                "critical_issues": [],
+                "positive_indicators": [],
+                "recommended_actions": ["Manual review recommended"],
+                "session_score": 50,
+                "confidence_level": "low"
+            }
+
+    def _categorize_error_types(self, failed_calls: List[Dict]) -> Dict[str, int]:
+        """Categorize types of errors found"""
+        error_categories = {
+            'authentication_errors': 0,
+            'authorization_errors': 0,
+            'timeout_errors': 0,
+            'validation_errors': 0,
+            'system_errors': 0,
+            'network_errors': 0,
+            'business_logic_errors': 0,
+            'unknown_errors': 0
+        }
+        
+        for call in failed_calls:
+            error_details = call.get('error_details', '').lower()
+            
+            if any(term in error_details for term in ['auth', 'login', 'credential', 'token']):
+                error_categories['authentication_errors'] += 1
+            elif any(term in error_details for term in ['authorization', 'permission', 'forbidden', 'access']):
+                error_categories['authorization_errors'] += 1
+            elif any(term in error_details for term in ['timeout', 'slow', 'delay']):
+                error_categories['timeout_errors'] += 1
+            elif any(term in error_details for term in ['validation', 'invalid', 'format', 'required']):
+                error_categories['validation_errors'] += 1
+            elif any(term in error_details for term in ['system', 'internal', 'server', 'database']):
+                error_categories['system_errors'] += 1
+            elif any(term in error_details for term in ['network', 'connection', 'unreachable']):
+                error_categories['network_errors'] += 1
+            elif any(term in error_details for term in ['business', 'rule', 'policy', 'limit']):
+                error_categories['business_logic_errors'] += 1
+            else:
+                error_categories['unknown_errors'] += 1
+        
+        return {k: v for k, v in error_categories.items() if v > 0}
 
     def _determine_call_success(self, log_entry: Dict) -> bool:
         """Determine if a fraud monitoring call was successful"""
