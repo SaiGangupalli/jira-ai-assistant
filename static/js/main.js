@@ -2648,7 +2648,231 @@ function formatFullTimestamp(timestamp) {
 }
 
 
-function createFraudMonitoringSection(monitoringAnalysis) {
+function displaySessionPreview(result, container) {
+    const hasData = result.has_data;
+    const totalLogs = result.total_logs || 0;
+    const apiCallCandidates = result.api_call_candidates || 0;
+    const aiAnalysisReady = result.ai_analysis_ready || false;
+    
+    let previewHtml = '';
+    
+    if (!hasData) {
+        previewHtml = `
+            <div style="color: #ffaa00; padding: 15px; background: #332200; border-radius: 6px; border: 1px solid #ffaa00;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <span>⚠️</span>
+                    <strong>No Data Found</strong>
+                </div>
+                <p style="margin: 0; font-size: 0.9rem;">No logs found for session ID "${result.session_id}". This could mean:</p>
+                <ul style="margin: 8px 0 0 20px; font-size: 0.8rem;">
+                    <li>Session ID doesn't exist or is incorrect</li>
+                    <li>Logs are outside the search time range</li>
+                    <li>Data hasn't been indexed yet</li>
+                </ul>
+            </div>
+        `;
+    } else {
+        const orderType = result.order_classification;
+        const customerType = result.customer_type;
+        
+        previewHtml = `
+            <div style="color: #00ff88; padding: 15px; background: #1a2d1a; border-radius: 6px; border: 1px solid #00ff88;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px;">
+                    <span>✅</span>
+                    <strong>Session Data Found - AI Analysis Ready</strong>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 15px;">
+                    <div style="background: #2d2d30; padding: 10px; border-radius: 6px; text-align: center;">
+                        <div style="font-size: 1.5rem; font-weight: bold; color: #00ff88;">${totalLogs}</div>
+                        <div style="font-size: 0.8rem; color: #ccc;">Total Logs</div>
+                    </div>
+                    <div style="background: #2d2d30; padding: 10px; border-radius: 6px; text-align: center;">
+                        <div style="font-size: 1.5rem; font-weight: bold; color: #ffaa00;">${apiCallCandidates}</div>
+                        <div style="font-size: 0.8rem; color: #ccc;">API Calls for AI</div>
+                    </div>
+                    <div style="background: #2d2d30; padding: 10px; border-radius: 6px; text-align: center;">
+                        <div style="font-size: 1.2rem; font-weight: bold; color: #88ccff;">${orderType.type || 'Unknown'}</div>
+                        <div style="font-size: 0.8rem; color: #ccc;">Order Type</div>
+                    </div>
+                    <div style="background: #2d2d30; padding: 10px; border-radius: 6px; text-align: center;">
+                        <div style="font-size: 1.2rem; font-weight: bold; color: #ffaa88;">${customerType.type || 'Unknown'}</div>
+                        <div style="font-size: 0.8rem; color: #ccc;">Customer Type</div>
+                    </div>
+                </div>
+                
+                <!-- AI Analysis Status -->
+                <div style="background: ${aiAnalysisReady ? '#1a2d1a' : '#2d2d1a'}; border: 1px solid ${aiAnalysisReady ? '#00ff88' : '#ffaa00'}; border-radius: 6px; padding: 12px; margin-bottom: 15px;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                        <span style="font-size: 1.2rem;">${aiAnalysisReady ? '🤖' : '⚠️'}</span>
+                        <strong style="color: ${aiAnalysisReady ? '#00ff88' : '#ffaa00'};">
+                            AI Analysis: ${aiAnalysisReady ? 'Ready' : 'Limited Data'}
+                        </strong>
+                    </div>
+                    <div style="font-size: 0.8rem; color: #ccc;">
+                        ${aiAnalysisReady ? 
+                            `${apiCallCandidates} API calls identified for AI-powered analysis. Expected analysis time: ~${result.estimated_analysis_time || 60} seconds.` :
+                            `Only ${apiCallCandidates} API calls found. AI analysis will be limited but still available.`
+                        }
+                    </div>
+                    ${aiAnalysisReady ? `
+                        <div style="margin-top: 8px; font-size: 0.7rem; color: #888;">
+                            AI will analyze: Request purpose, Response patterns, Error detection, Risk indicators, Business impact
+                        </div>
+                    ` : ''}
+                </div>
+                
+                <div style="font-size: 0.9rem;">
+                    <strong>Log Distribution:</strong>
+                    <div style="margin-top: 8px; display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px;">
+                        ${Object.entries(result.log_counts).map(([type, count]) => 
+                            count > 0 ? `<span style="background: #333; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;"><strong>${type.replace('_', ' ')}:</strong> ${count}</span>` : ''
+                        ).filter(item => item).join('')}
+                    </div>
+                </div>
+                
+                ${orderType.confidence ? `<div style="margin-top: 10px; font-size: 0.8rem; color: #ccc;">Order classification confidence: ${Math.round(orderType.confidence * 100)}%</div>` : ''}
+            </div>
+        `;
+    }
+    
+    container.innerHTML = previewHtml;
+}
+
+// Add debugging function to help troubleshoot AI analysis issues
+function debugFraudAnalysis() {
+    if (window.currentFraudAnalysis) {
+        console.log('=== FRAUD ANALYSIS DEBUG INFO ===');
+        console.log('Full Analysis Object:', window.currentFraudAnalysis);
+        console.log('Monitoring Analysis:', window.currentFraudAnalysis.monitoring_analysis);
+        console.log('API Call Analysis:', window.currentFraudAnalysis.monitoring_analysis?.api_call_analysis);
+        console.log('AI Insights:', window.currentFraudAnalysis.monitoring_analysis?.ai_insights);
+        console.log('Summary Stats:', window.currentFraudAnalysis.monitoring_analysis?.summary_statistics);
+        console.log('=== END DEBUG INFO ===');
+        
+        return window.currentFraudAnalysis;
+    } else {
+        console.log('No fraud analysis data available. Run an analysis first.');
+        return null;
+    }
+}
+
+// Add to global scope for debugging
+window.debugFraudAnalysis = debugFraudAnalysis;
+
+// Update the analyzeFraudSession function to include better error handling and debugging
+async function analyzeFraudSession(fraudType) {
+    console.log('Starting fraud analysis for type:', fraudType);
+    
+    const sessionIdInput = document.getElementById('fraudSessionId');
+    const analyzeBtn = document.querySelector('.fraud-analyze-button');
+    
+    if (!sessionIdInput || !sessionIdInput.value.trim()) {
+        showAlert('Please enter a Session ID');
+        return;
+    }
+    
+    const sessionId = sessionIdInput.value.trim();
+    
+    // Show loading state
+    if (analyzeBtn) {
+        analyzeBtn.disabled = true;
+        analyzeBtn.innerHTML = '<span>🔄</span><span>AI Analysis in Progress...</span>';
+    }
+    
+    // Add loading message about AI analysis
+    const loadingMessage = addMessage(`
+        <div style="text-align: center; padding: 20px; background: #1a2d1a; border-radius: 8px; border: 1px solid #00ff88;">
+            <div style="font-size: 2rem; margin-bottom: 10px;">🤖</div>
+            <h4 style="color: #00ff88; margin-bottom: 10px;">AI-Powered Fraud Analysis in Progress</h4>
+            <p style="color: #cccccc; margin-bottom: 15px;">Analyzing session logs with Gen AI...</p>
+            <div style="background: #2d2d30; padding: 10px; border-radius: 6px; font-size: 0.8rem; color: #888;">
+                <div>• Gathering logs from all sources</div>
+                <div>• Classifying order and customer type</div>
+                <div>• AI analyzing each API call</div>
+                <div>• Generating insights and recommendations</div>
+            </div>
+            <div style="margin-top: 15px;">
+                <div class="loading-spinner" style="margin: 0 auto;"></div>
+            </div>
+        </div>
+    `, false);
+    
+    try {
+        console.log('Sending fraud analysis request:', { session_id: sessionId, fraud_type: fraudType });
+        
+        const response = await fetch('/api/fraud-analysis', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                session_id: sessionId,
+                fraud_type: fraudType
+            })
+        });
+
+        const result = await response.json();
+        console.log('Fraud analysis result:', result);
+        
+        // Remove loading message
+        if (loadingMessage) {
+            loadingMessage.remove();
+        }
+
+        if (result.success) {
+            // Add debug info to result
+            console.log('AI Analysis successful. API calls analyzed:', result.analysis?.monitoring_analysis?.api_call_analysis?.length || 0);
+            displayFraudResults(result);
+        } else {
+            addMessage(`
+                <div class="error-message">
+                    <h4>❌ Fraud Analysis Failed</h4>
+                    <p><strong>Error:</strong> ${result.error}</p>
+                    ${result.details ? `<p><strong>Details:</strong> ${result.details}</p>` : ''}
+                    <div style="margin-top: 15px; padding: 10px; background: #2d2d30; border-radius: 6px; font-size: 0.8rem;">
+                        <strong>Troubleshooting Tips:</strong>
+                        <ul style="margin: 8px 0 0 20px;">
+                            <li>Verify the session ID exists in your logs</li>
+                            <li>Check that OpenAI API key is configured</li>
+                            <li>Ensure Elasticsearch is accessible</li>
+                            <li>Try with a different session ID</li>
+                        </ul>
+                    </div>
+                </div>
+            `, false);
+        }
+        
+    } catch (error) {
+        console.error('Fraud analysis error:', error);
+        
+        // Remove loading message
+        if (loadingMessage) {
+            loadingMessage.remove();
+        }
+        
+        addMessage(`
+            <div class="error-message">
+                <h4>❌ Network Error</h4>
+                <p><strong>Error:</strong> ${error.message}</p>
+                <div style="margin-top: 15px; padding: 10px; background: #2d2d30; border-radius: 6px; font-size: 0.8rem;">
+                    <strong>Common Issues:</strong>
+                    <ul style="margin: 8px 0 0 20px;">
+                        <li>Server connection timeout</li>
+                        <li>OpenAI API rate limits</li>
+                        <li>Large session data taking longer to process</li>
+                    </ul>
+                </div>
+            </div>
+        `, false);
+    } finally {
+        if (analyzeBtn) {
+            analyzeBtn.disabled = false;
+            const config = getFraudConfig(fraudType);
+            analyzeBtn.innerHTML = `<span>${config.icon}</span><span>Analyze ${config.title.replace(' Analysis', '')}</span>`;
+        }
+    }
+}function createFraudMonitoringSection(monitoringAnalysis) {
     const apiCallAnalysis = monitoringAnalysis.api_call_analysis || [];
     const aiInsights = monitoringAnalysis.ai_insights || {};
     const summaryStats = monitoringAnalysis.summary_statistics || {};
