@@ -3356,10 +3356,291 @@ function formatAPITimestamp(timestamp) {
 function truncateText(text, maxLength) {
     if (!text || text.length <= maxLength) return text;
     return text.substring(0, maxLength) + '...';
-}// Add these functions to main.js for fraud analysis functionality
+}// Add test functions to help debug the AI analysis display
 
-// Global variable to track current fraud type
-let currentFraudType = null;
+async function testFraudAnalysisDisplay() {
+    console.log('Testing fraud analysis display with mock data...');
+    
+    try {
+        // Get test data from backend
+        const response = await fetch('/api/test-fraud-analysis', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                session_id: 'test_session_123'
+            })
+        });
+
+        const result = await response.json();
+        console.log('Test endpoint result:', result);
+
+        if (result.success && result.test_results.mock_analysis) {
+            // Display the mock analysis to test the UI
+            console.log('Displaying mock fraud analysis...');
+            displayFraudResults(result.test_results.mock_analysis);
+        } else {
+            console.log('Test results:', result.test_results);
+            addMessage(`
+                <div style="background: #2d2d30; border: 1px solid #ffaa00; border-radius: 8px; padding: 20px;">
+                    <h4 style="color: #ffaa00;">🔧 Fraud Analysis Debug Results</h4>
+                    <div style="font-family: monospace; font-size: 0.8rem; color: #ccc; background: #1a1a1a; padding: 15px; border-radius: 6px; margin-top: 10px; white-space: pre-wrap;">
+${JSON.stringify(result.test_results, null, 2)}
+                    </div>
+                    <div style="margin-top: 15px; padding: 10px; background: #332200; border-radius: 6px; border-left: 4px solid #ffaa00;">
+                        <strong style="color: #ffaa00;">Next Steps:</strong>
+                        <ul style="margin: 8px 0 0 20px; color: #cccccc; font-size: 0.9rem;">
+                            <li>Check OpenAI API key configuration</li>
+                            <li>Verify Elasticsearch connection</li>
+                            <li>Test with a real session ID that has API logs</li>
+                        </ul>
+                    </div>
+                </div>
+            `, false);
+        }
+        
+    } catch (error) {
+        console.error('Test fraud analysis error:', error);
+        addMessage(`
+            <div class="error-message">
+                <h4>❌ Test Failed</h4>
+                <p><strong>Error:</strong> ${error.message}</p>
+                <p>Unable to connect to the test endpoint. Check that the server is running and the test endpoint is added.</p>
+            </div>
+        `, false);
+    }
+}
+
+// Update the showFraudForm function to include a test button
+function showFraudForm(fraudType) {
+    console.log('Showing fraud form for:', fraudType);
+    currentFraudType = fraudType;
+    
+    // Fraud type configurations
+    const fraudConfigs = {
+        'digital_fraud': {
+            title: 'Digital Fraud Analysis',
+            icon: '🤖',
+            description: 'Analyze automated/bot-driven fraudulent activities and device fingerprinting patterns',
+            focus: ['Device fingerprinting', 'Automated behavior detection', 'Bot identification', 'Digital payment fraud']
+        },
+        'assisted_fraud': {
+            title: 'Assisted Fraud Analysis',
+            icon: '👥',
+            description: 'Analyze human-assisted fraudulent activities and social engineering patterns',
+            focus: ['Social engineering', 'Customer service fraud', 'Human behavior patterns', 'Account takeover']
+        },
+        'transaction_fraud': {
+            title: 'Transaction Fraud Analysis',
+            icon: '💳',
+            description: 'Analyze suspicious transaction patterns and payment anomalies',
+            focus: ['Payment fraud', 'Transaction velocity', 'Amount anomalies', 'Cross-border fraud']
+        },
+        'identity_fraud': {
+            title: 'Identity Fraud Analysis',
+            icon: '🆔',
+            description: 'Analyze identity theft, impersonation and synthetic identity fraud',
+            focus: ['Identity verification', 'Document fraud', 'Synthetic identity', 'Account creation fraud']
+        }
+    };
+    
+    const config = fraudConfigs[fraudType];
+    if (!config) {
+        showAlert('Unknown fraud type selected');
+        return;
+    }
+    
+    // Build focus areas HTML
+    let focusAreasHtml = '';
+    config.focus.forEach(area => {
+        focusAreasHtml += `<span style="display: inline-block; background: #333; color: #fff; padding: 4px 8px; border-radius: 12px; margin: 2px 4px; font-size: 0.8rem;">${area}</span>`;
+    });
+    
+    const fraudFormHtml = `
+        ${addBackButton('fraud')}
+        
+        <div class="fraud-form">
+            <h3>
+                <span>${config.icon}</span>
+                <span>${config.title}</span>
+            </h3>
+            
+            <p style="color: #cccccc; margin-bottom: 20px; line-height: 1.4;">
+                ${config.description}
+            </p>
+            
+            <div style="margin-bottom: 25px; padding: 15px; background: #2d2d30; border-radius: 8px; border-left: 4px solid #ff4444;">
+                <strong style="color: #ff4444; display: block; margin-bottom: 8px;">🎯 Focus Areas:</strong>
+                <div>${focusAreasHtml}</div>
+            </div>
+            
+            <div class="fraud-form-group">
+                <label for="fraudSessionId">Session ID:</label>
+                <input type="text" 
+                       id="fraudSessionId" 
+                       placeholder="Enter session ID to analyze (e.g., sess_abc123456)"
+                       required>
+                <small style="color: #888; font-size: 0.8rem; margin-top: 5px; display: block;">
+                    💡 The session ID will be used to gather logs from all monitoring systems
+                </small>
+            </div>
+            
+            <div class="fraud-form-group">
+                <label for="previewSession">Quick Preview:</label>
+                <button type="button" class="fraud-preview-button" onclick="previewFraudSession()" 
+                        style="background: #333; color: #fff; border: 1px solid #555; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; margin-bottom: 10px; margin-right: 10px;">
+                    🔍 Preview Session Data
+                </button>
+                <button type="button" onclick="testFraudAnalysisDisplay()" 
+                        style="background: #006600; color: #fff; border: 1px solid #00aa00; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; margin-bottom: 10px;">
+                    🧪 Test AI Display
+                </button>
+                <div id="sessionPreview" style="display: none; margin-top: 10px;"></div>
+            </div>
+            
+            <button class="fraud-analyze-button" onclick="analyzeFraudSession('${fraudType}')">
+                <span>${config.icon}</span>
+                <span>Analyze ${config.title.replace(' Analysis', '')}</span>
+            </button>
+        </div>
+    `;
+    
+    addMessage(fraudFormHtml, false);
+}
+
+// Function to manually test AI analysis display with hardcoded data
+function testAIDisplayWithHardcodedData() {
+    console.log('Testing AI display with hardcoded data...');
+    
+    const mockResult = {
+        success: true,
+        session_id: 'test_session_123',
+        fraud_type: 'digital_fraud',
+        analysis: {
+            monitoring_analysis: {
+                api_call_analysis: [
+                    {
+                        api_endpoint: '/api/fraud/check',
+                        http_method: 'POST',
+                        request_purpose: 'Fraud risk assessment for transaction',
+                        response_analysis: 'API call completed successfully with risk score calculated',
+                        is_successful: true,
+                        error_details: null,
+                        fraud_relevance: 'Primary fraud detection mechanism',
+                        risk_indicators: ['high_velocity_transaction', 'new_device'],
+                        business_impact: 'Critical for transaction approval decision',
+                        recommendations: 'Continue monitoring velocity patterns',
+                        processing_time_ms: 250,
+                        status_code: 200,
+                        confidence_score: 0.85,
+                        timestamp: '2025-01-03T10:30:00Z',
+                        log_level: 'INFO',
+                        source_type: 'api_gateway',
+                        session_id: 'test_session_123',
+                        original_message: 'Fraud check completed for session',
+                        component: 'fraud-service',
+                        raw_log_id: 'log_123'
+                    },
+                    {
+                        api_endpoint: '/api/payment/process',
+                        http_method: 'POST',
+                        request_purpose: 'Process payment transaction',
+                        response_analysis: 'Payment processing failed due to insufficient funds',
+                        is_successful: false,
+                        error_details: 'Insufficient funds in account',
+                        fraud_relevance: 'Payment failure could indicate account compromise',
+                        risk_indicators: ['payment_failure', 'insufficient_funds'],
+                        business_impact: 'Transaction rejected, revenue loss',
+                        recommendations: 'Verify account status and fraud indicators',
+                        processing_time_ms: 150,
+                        status_code: 402,
+                        confidence_score: 0.92,
+                        timestamp: '2025-01-03T10:30:05Z',
+                        log_level: 'ERROR',
+                        source_type: 'payment_gateway',
+                        session_id: 'test_session_123',
+                        original_message: 'Payment processing failed',
+                        component: 'payment-service',
+                        raw_log_id: 'log_124'
+                    }
+                ],
+                ai_insights: {
+                    overall_session_health: 'Session shows mixed results with successful fraud detection but payment processing issues',
+                    key_findings: ['Fraud detection working properly', 'Payment processing failed', 'High risk indicators present'],
+                    fraud_risk_assessment: 'Medium risk due to payment failures and velocity patterns',
+                    critical_issues: ['Payment processing failure', 'Insufficient funds error'],
+                    positive_indicators: ['Fraud detection system active', 'Risk scoring operational'],
+                    recommended_actions: [
+                        'Review account balance verification process',
+                        'Implement enhanced fraud monitoring for failed payments',
+                        'Consider payment retry mechanisms'
+                    ],
+                    session_score: 65,
+                    confidence_level: 'high'
+                },
+                summary_statistics: {
+                    total_api_calls: 2,
+                    successful_calls: 1,
+                    failed_calls: 1,
+                    success_rate: 0.5,
+                    unique_endpoints: 2,
+                    error_types: {'business_logic_errors': 1}
+                }
+            },
+            order_classification: {
+                type: 'purchase',
+                confidence: 0.85,
+                amount: 150.00,
+                currency: 'USD'
+            },
+            customer_type: {
+                type: 'existing_customer',
+                confidence: 0.75,
+                customer_id: 'cust_123456'
+            },
+            risk_assessment: {
+                level: 'MEDIUM',
+                score: 65,
+                color: '#ffaa00',
+                factors: ['Payment processing failure', 'High velocity transaction patterns']
+            },
+            recommendations: [
+                'Review payment processing workflow',
+                'Enhance account balance verification',
+                'Monitor transaction velocity patterns'
+            ],
+            statistics: {
+                total_logs_analyzed: 15,
+                fraud_calls_triggered: 2,
+                fraud_call_success_rate: 0.5,
+                risk_scores_recorded: 1,
+                decisions_made: 2
+            },
+            timeline: [
+                {
+                    timestamp: '2025-01-03T10:30:00Z',
+                    event: 'Fraud Detection: risk_calculator',
+                    status: 'Success',
+                    details: 'Risk score calculated successfully'
+                },
+                {
+                    timestamp: '2025-01-03T10:30:05Z',
+                    event: 'Payment Processing: process_payment',
+                    status: 'Failed',
+                    details: 'Payment processing failed due to insufficient funds'
+                }
+            ]
+        }
+    };
+    
+    console.log('Displaying hardcoded mock data:', mockResult);
+    displayFraudResults(mockResult);
+}
+
+// Add global function for easy testing
+window.testAIDisplayWithHardcodedData = testAIDisplayWithHardcodedData;
+window.testFraudAnalysisDisplay = testFraudAnalysisDisplay;
 
 // Show fraud analysis form for specific fraud type
 function showFraudForm(fraudType) {
