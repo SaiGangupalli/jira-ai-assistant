@@ -2648,7 +2648,491 @@ function formatFullTimestamp(timestamp) {
 }
 
 
-// Add these functions to main.js for fraud analysis functionality
+function createFraudMonitoringSection(monitoringAnalysis) {
+    const apiCallAnalysis = monitoringAnalysis.api_call_analysis || [];
+    const aiInsights = monitoringAnalysis.ai_insights || {};
+    const summaryStats = monitoringAnalysis.summary_statistics || {};
+    
+    let monitoringHtml = `
+        <div class="fraud-section">
+            <h4>🔍 AI-Powered API Call Analysis</h4>
+            
+            <!-- Summary Statistics -->
+            <div class="fraud-grid" style="margin-bottom: 20px;">
+                <div class="fraud-metric">
+                    <div class="fraud-metric-value" style="color: #88ccff;">${summaryStats.total_api_calls || 0}</div>
+                    <div class="fraud-metric-label">Total API Calls</div>
+                </div>
+                <div class="fraud-metric">
+                    <div class="fraud-metric-value" style="color: #00ff88;">${summaryStats.successful_calls || 0}</div>
+                    <div class="fraud-metric-label">Successful</div>
+                </div>
+                <div class="fraud-metric">
+                    <div class="fraud-metric-value" style="color: #ff4444;">${summaryStats.failed_calls || 0}</div>
+                    <div class="fraud-metric-label">Failed</div>
+                </div>
+                <div class="fraud-metric">
+                    <div class="fraud-metric-value" style="color: ${summaryStats.success_rate >= 0.8 ? '#00ff88' : summaryStats.success_rate >= 0.6 ? '#ffaa00' : '#ff4444'};">
+                        ${Math.round((summaryStats.success_rate || 0) * 100)}%
+                    </div>
+                    <div class="fraud-metric-label">Success Rate</div>
+                </div>
+            </div>
+            
+            <!-- AI Insights Summary -->
+            ${createAIInsightsSummary(aiInsights)}
+            
+            <!-- API Calls Table -->
+            ${createAPICallsTable(apiCallAnalysis)}
+        </div>
+    `;
+    
+    return monitoringHtml;
+}
+
+function createAIInsightsSummary(aiInsights) {
+    if (!aiInsights || Object.keys(aiInsights).length === 0) {
+        return `
+            <div style="background: #2d2d30; border: 1px solid #444; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                <strong style="color: #888;">AI Insights not available</strong>
+            </div>
+        `;
+    }
+    
+    return `
+        <div style="background: linear-gradient(135deg, #1a2d1a, #2d3a2d); border: 1px solid #00ff88; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 15px;">
+                <h5 style="color: #00ff88; margin: 0; display: flex; align-items: center; gap: 8px;">
+                    🤖 AI Insights Summary
+                </h5>
+                <div style="background: ${getScoreColor(aiInsights.session_score)}20; color: ${getScoreColor(aiInsights.session_score)}; padding: 6px 12px; border-radius: 15px; font-size: 0.8rem; font-weight: 600; border: 1px solid ${getScoreColor(aiInsights.session_score)};">
+                    Session Score: ${aiInsights.session_score || 'N/A'}/100
+                </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <div>
+                    <strong style="color: #ffffff; display: block; margin-bottom: 8px;">📊 Overall Health:</strong>
+                    <div style="color: #cccccc; font-size: 0.9rem;">${aiInsights.overall_session_health || 'Not assessed'}</div>
+                </div>
+                <div>
+                    <strong style="color: #ffffff; display: block; margin-bottom: 8px;">🎯 Risk Assessment:</strong>
+                    <div style="color: #cccccc; font-size: 0.9rem;">${aiInsights.fraud_risk_assessment || 'Not assessed'}</div>
+                </div>
+            </div>
+            
+            ${aiInsights.key_findings && aiInsights.key_findings.length > 0 ? `
+                <div style="margin-bottom: 15px;">
+                    <strong style="color: #ffffff; display: block; margin-bottom: 8px;">🔍 Key Findings:</strong>
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                        ${aiInsights.key_findings.map(finding => 
+                            `<span style="background: #333; color: #fff; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; border: 1px solid #555;">${finding}</span>`
+                        ).join('')}
+                    </div>
+                </div>
+            ` : ''}
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                ${aiInsights.critical_issues && aiInsights.critical_issues.length > 0 ? `
+                    <div>
+                        <strong style="color: #ff4444; display: block; margin-bottom: 8px;">⚠️ Critical Issues:</strong>
+                        <div style="font-size: 0.8rem;">
+                            ${aiInsights.critical_issues.map(issue => 
+                                `<div style="color: #ff6666; margin: 4px 0;">• ${issue}</div>`
+                            ).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+                
+                ${aiInsights.positive_indicators && aiInsights.positive_indicators.length > 0 ? `
+                    <div>
+                        <strong style="color: #00ff88; display: block; margin-bottom: 8px;">✅ Positive Indicators:</strong>
+                        <div style="font-size: 0.8rem;">
+                            ${aiInsights.positive_indicators.map(indicator => 
+                                `<div style="color: #66ff88; margin: 4px 0;">• ${indicator}</div>`
+                            ).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+}
+
+function createAPICallsTable(apiCallAnalysis) {
+    if (!apiCallAnalysis || apiCallAnalysis.length === 0) {
+        return `
+            <div style="text-align: center; padding: 40px; background: #2d2d30; border-radius: 8px; border: 1px solid #444;">
+                <div style="font-size: 2rem; margin-bottom: 15px;">📊</div>
+                <h4 style="color: #ffffff; margin-bottom: 10px;">No API Calls Analyzed</h4>
+                <p style="color: #cccccc;">No API call data was found in the session logs for AI analysis.</p>
+            </div>
+        `;
+    }
+    
+    return `
+        <div style="margin-top: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h5 style="color: #ffffff; margin: 0;">📋 Detailed API Call Analysis</h5>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="exportAPIAnalysis('csv')" 
+                            style="background: #333; color: #fff; border: 1px solid #555; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;"
+                            title="Export as CSV">
+                        📊 CSV
+                    </button>
+                    <button onclick="filterAPITable('failed')" 
+                            style="background: #333; color: #fff; border: 1px solid #555; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;"
+                            title="Show only failed calls">
+                        ❌ Failed Only
+                    </button>
+                    <button onclick="filterAPITable('all')" 
+                            style="background: #333; color: #fff; border: 1px solid #555; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;"
+                            title="Show all calls">
+                        📋 Show All
+                    </button>
+                </div>
+            </div>
+            
+            <div style="overflow-x: auto; border-radius: 8px; border: 1px solid #444;">
+                <table id="api-analysis-table" style="width: 100%; border-collapse: collapse; font-size: 0.85rem; background: #1a1a1a;">
+                    <thead>
+                        <tr style="background: linear-gradient(135deg, #333333, #555555);">
+                            <th style="border: 1px solid #555; padding: 10px; text-align: left; color: #fff; font-weight: 600; min-width: 100px;">Timestamp</th>
+                            <th style="border: 1px solid #555; padding: 10px; text-align: left; color: #fff; font-weight: 600; min-width: 150px;">API Endpoint</th>
+                            <th style="border: 1px solid #555; padding: 10px; text-align: center; color: #fff; font-weight: 600; width: 80px;">Method</th>
+                            <th style="border: 1px solid #555; padding: 10px; text-align: center; color: #fff; font-weight: 600; width: 80px;">Status</th>
+                            <th style="border: 1px solid #555; padding: 10px; text-align: left; color: #fff; font-weight: 600; min-width: 200px;">Purpose</th>
+                            <th style="border: 1px solid #555; padding: 10px; text-align: left; color: #fff; font-weight: 600; min-width: 200px;">AI Analysis</th>
+                            <th style="border: 1px solid #555; padding: 10px; text-align: left; color: #fff; font-weight: 600; min-width: 150px;">Risk Indicators</th>
+                            <th style="border: 1px solid #555; padding: 10px; text-align: center; color: #fff; font-weight: 600; width: 80px;">Score</th>
+                            <th style="border: 1px solid #555; padding: 10px; text-align: center; color: #fff; font-weight: 600; width: 60px;">Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${apiCallAnalysis.map((analysis, index) => createAPICallRow(analysis, index)).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+}
+
+function createAPICallRow(analysis, index) {
+    const isSuccessful = analysis.is_successful;
+    const statusColor = isSuccessful ? '#00ff88' : '#ff4444';
+    const statusText = isSuccessful ? 'Success' : 'Failed';
+    const statusIcon = isSuccessful ? '✅' : '❌';
+    const rowClass = isSuccessful ? 'api-success' : 'api-failed';
+    const bgColor = index % 2 === 0 ? '#2d2d30' : '#1a1a1a';
+    
+    const confidenceScore = Math.round((analysis.confidence_score || 0) * 100);
+    const scoreColor = confidenceScore >= 80 ? '#00ff88' : confidenceScore >= 60 ? '#ffaa00' : '#ff4444';
+    
+    return `
+        <tr class="${rowClass}" style="background: ${bgColor}; transition: background-color 0.2s;" 
+            onmouseover="this.style.background='#333333'" 
+            onmouseout="this.style.background='${bgColor}'">
+            
+            <td style="border: 1px solid #444; padding: 8px; color: #00ff88; font-family: monospace; font-size: 0.8rem;">
+                ${formatAPITimestamp(analysis.timestamp)}
+            </td>
+            
+            <td style="border: 1px solid #444; padding: 8px; color: #88ccff; font-family: monospace; max-width: 200px; overflow: hidden; text-overflow: ellipsis;">
+                <div title="${analysis.api_endpoint || 'Unknown'}">${truncateText(analysis.api_endpoint || 'Unknown', 25)}</div>
+                ${analysis.component ? `<small style="color: #888; font-size: 0.7rem;">${analysis.component}</small>` : ''}
+            </td>
+            
+            <td style="border: 1px solid #444; padding: 8px; text-align: center;">
+                <span style="background: ${getHttpMethodColor(analysis.http_method)}20; color: ${getHttpMethodColor(analysis.http_method)}; padding: 3px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 600;">
+                    ${analysis.http_method || 'N/A'}
+                </span>
+            </td>
+            
+            <td style="border: 1px solid #444; padding: 8px; text-align: center;">
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+                    <span style="color: ${statusColor}; font-size: 1rem;">${statusIcon}</span>
+                    <span style="color: ${statusColor}; font-size: 0.7rem; font-weight: 600;">${statusText}</span>
+                    ${analysis.status_code ? `<span style="color: #888; font-size: 0.6rem;">${analysis.status_code}</span>` : ''}
+                </div>
+            </td>
+            
+            <td style="border: 1px solid #444; padding: 8px; color: #ffffff; max-width: 250px;">
+                <div style="font-size: 0.8rem; line-height: 1.3;">
+                    ${truncateText(analysis.request_purpose || 'Purpose not identified', 40)}
+                </div>
+                ${analysis.fraud_relevance ? `
+                    <div style="margin-top: 4px; font-size: 0.7rem; color: #ffaa88; font-style: italic;">
+                        ${truncateText(analysis.fraud_relevance, 50)}
+                    </div>
+                ` : ''}
+            </td>
+            
+            <td style="border: 1px solid #444; padding: 8px; color: #cccccc; max-width: 250px;">
+                <div style="font-size: 0.8rem; line-height: 1.3;">
+                    ${truncateText(analysis.response_analysis || 'No analysis available', 60)}
+                </div>
+                ${analysis.error_details ? `
+                    <div style="margin-top: 4px; padding: 4px; background: #2d1a1a; border-radius: 4px; border-left: 2px solid #ff4444;">
+                        <span style="font-size: 0.7rem; color: #ff6666;">Error: ${truncateText(analysis.error_details, 50)}</span>
+                    </div>
+                ` : ''}
+                ${analysis.processing_time_ms ? `
+                    <div style="margin-top: 4px; font-size: 0.7rem; color: #888;">
+                        ⏱️ ${analysis.processing_time_ms}ms
+                    </div>
+                ` : ''}
+            </td>
+            
+            <td style="border: 1px solid #444; padding: 8px; color: #ffffff;">
+                ${analysis.risk_indicators && analysis.risk_indicators.length > 0 ? `
+                    <div style="display: flex; flex-wrap: wrap; gap: 2px;">
+                        ${analysis.risk_indicators.slice(0, 3).map(indicator => 
+                            `<span style="background: #ff444420; color: #ff6666; padding: 2px 4px; border-radius: 6px; font-size: 0.6rem; border: 1px solid #ff4444;" title="${indicator}">
+                                ${truncateText(indicator, 10)}
+                            </span>`
+                        ).join('')}
+                        ${analysis.risk_indicators.length > 3 ? `<span style="color: #888; font-size: 0.6rem;">+${analysis.risk_indicators.length - 3}</span>` : ''}
+                    </div>
+                ` : `
+                    <span style="color: #00ff88; font-size: 0.7rem; font-style: italic;">No risks detected</span>
+                `}
+            </td>
+            
+            <td style="border: 1px solid #444; padding: 8px; text-align: center;">
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+                    <span style="color: ${scoreColor}; font-weight: 600; font-size: 0.9rem;">${confidenceScore}%</span>
+                    <div style="width: 30px; height: 4px; background: #333; border-radius: 2px; overflow: hidden;">
+                        <div style="width: ${confidenceScore}%; height: 100%; background: ${scoreColor}; transition: width 0.3s;"></div>
+                    </div>
+                </div>
+            </td>
+            
+            <td style="border: 1px solid #444; padding: 8px; text-align: center;">
+                <button onclick="showAPICallDetails(${index})" 
+                        style="background: #333; color: #fff; border: 1px solid #555; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; transition: all 0.2s;"
+                        onmouseover="this.style.background='#444'" 
+                        onmouseout="this.style.background='#333'"
+                        title="View detailed analysis">
+                    👁️
+                </button>
+            </td>
+        </tr>
+        
+        <!-- Hidden detail row -->
+        <tr id="api-details-${index}" style="display: none; background: #1a1a1a;">
+            <td colspan="9" style="border: 1px solid #444; padding: 0;">
+                <div style="padding: 15px; background: linear-gradient(135deg, #1a1a1a, #2d2d30); border-top: 2px solid #333;">
+                    ${createAPICallDetailView(analysis)}
+                </div>
+            </td>
+        </tr>
+    `;
+}
+
+function createAPICallDetailView(analysis) {
+    return `
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div>
+                <h6 style="color: #ffaa00; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                    📊 Request Details
+                </h6>
+                <div style="background: #2d2d30; padding: 12px; border-radius: 6px; font-size: 0.8rem;">
+                    <div style="margin-bottom: 8px;"><strong style="color: #88ccff;">Endpoint:</strong> <span style="color: #fff; font-family: monospace;">${analysis.api_endpoint || 'Unknown'}</span></div>
+                    <div style="margin-bottom: 8px;"><strong style="color: #88ccff;">Method:</strong> <span style="color: #fff;">${analysis.http_method || 'N/A'}</span></div>
+                    <div style="margin-bottom: 8px;"><strong style="color: #88ccff;">Source:</strong> <span style="color: #fff;">${analysis.source_type || 'Unknown'}</span></div>
+                    <div style="margin-bottom: 8px;"><strong style="color: #88ccff;">Component:</strong> <span style="color: #fff;">${analysis.component || 'N/A'}</span></div>
+                    <div style="margin-bottom: 8px;"><strong style="color: #88ccff;">Log Level:</strong> <span style="color: ${getLogLevelColor(analysis.log_level)}">${analysis.log_level || 'INFO'}</span></div>
+                    ${analysis.processing_time_ms ? `<div style="margin-bottom: 8px;"><strong style="color: #88ccff;">Processing Time:</strong> <span style="color: #fff;">${analysis.processing_time_ms}ms</span></div>` : ''}
+                    ${analysis.status_code ? `<div><strong style="color: #88ccff;">Status Code:</strong> <span style="color: ${getHttpStatusColor(analysis.status_code)}">${analysis.status_code}</span></div>` : ''}
+                </div>
+            </div>
+            
+            <div>
+                <h6 style="color: #ffaa00; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                    🤖 AI Analysis
+                </h6>
+                <div style="background: #2d2d30; padding: 12px; border-radius: 6px; font-size: 0.8rem;">
+                    <div style="margin-bottom: 10px;">
+                        <strong style="color: #00ff88;">Purpose:</strong>
+                        <div style="color: #fff; margin-top: 4px; line-height: 1.4;">${analysis.request_purpose || 'Not identified'}</div>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <strong style="color: #00ff88;">Analysis:</strong>
+                        <div style="color: #fff; margin-top: 4px; line-height: 1.4;">${analysis.response_analysis || 'No analysis available'}</div>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <strong style="color: #00ff88;">Business Impact:</strong>
+                        <div style="color: #fff; margin-top: 4px; line-height: 1.4;">${analysis.business_impact || 'Not assessed'}</div>
+                    </div>
+                    <div>
+                        <strong style="color: #00ff88;">Confidence:</strong>
+                        <div style="margin-top: 4px;">
+                            <span style="color: ${getConfidenceColor(analysis.confidence_score)}; font-weight: 600;">${Math.round((analysis.confidence_score || 0) * 100)}%</span>
+                            <span style="color: #888; font-size: 0.7rem; margin-left: 8px;">(AI Confidence Level)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        ${analysis.risk_indicators && analysis.risk_indicators.length > 0 ? `
+            <div style="margin-top: 15px;">
+                <h6 style="color: #ff4444; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                    ⚠️ Risk Indicators
+                </h6>
+                <div style="background: #2d1a1a; padding: 12px; border-radius: 6px; border-left: 4px solid #ff4444;">
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                        ${analysis.risk_indicators.map(indicator => 
+                            `<span style="background: #ff444420; color: #ff6666; padding: 6px 10px; border-radius: 12px; font-size: 0.8rem; border: 1px solid #ff4444;">
+                                ⚠️ ${indicator}
+                            </span>`
+                        ).join('')}
+                    </div>
+                </div>
+            </div>
+        ` : ''}
+        
+        ${analysis.recommendations ? `
+            <div style="margin-top: 15px;">
+                <h6 style="color: #00ff88; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                    💡 Recommendations
+                </h6>
+                <div style="background: #1a2d1a; padding: 12px; border-radius: 6px; border-left: 4px solid #00ff88;">
+                    <div style="color: #fff; font-size: 0.8rem; line-height: 1.4;">
+                        ${analysis.recommendations}
+                    </div>
+                </div>
+            </div>
+        ` : ''}
+        
+        ${analysis.original_message ? `
+            <div style="margin-top: 15px;">
+                <h6 style="color: #888; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                    📝 Original Log Message
+                </h6>
+                <div style="background: #1a1a2d; padding: 12px; border-radius: 6px; border-left: 4px solid #888;">
+                    <div style="color: #ccc; font-size: 0.8rem; font-family: monospace; line-height: 1.4; word-break: break-word;">
+                        ${analysis.original_message}
+                    </div>
+                </div>
+            </div>
+        ` : ''}
+    `;
+}
+
+// Helper functions for the API analysis table
+function showAPICallDetails(index) {
+    const detailsRow = document.getElementById(`api-details-${index}`);
+    const allDetailRows = document.querySelectorAll('[id^="api-details-"]');
+    
+    // Hide all other detail rows
+    allDetailRows.forEach(row => {
+        if (row.id !== `api-details-${index}`) {
+            row.style.display = 'none';
+        }
+    });
+    
+    // Toggle the clicked row
+    if (detailsRow.style.display === 'none') {
+        detailsRow.style.display = 'table-row';
+    } else {
+        detailsRow.style.display = 'none';
+    }
+}
+
+function filterAPITable(filterType) {
+    const table = document.getElementById('api-analysis-table');
+    if (!table) return;
+    
+    const rows = table.querySelectorAll('tbody tr:not([id^="api-details-"])');
+    
+    rows.forEach(row => {
+        if (filterType === 'all') {
+            row.style.display = '';
+        } else if (filterType === 'failed') {
+            const hasFailedClass = row.classList.contains('api-failed');
+            row.style.display = hasFailedClass ? '' : 'none';
+        }
+    });
+    
+    // Hide all detail rows when filtering
+    const detailRows = table.querySelectorAll('[id^="api-details-"]');
+    detailRows.forEach(row => {
+        row.style.display = 'none';
+    });
+}
+
+function exportAPIAnalysis(format) {
+    const table = document.getElementById('api-analysis-table');
+    if (!table) {
+        showAlert('No API analysis table found to export');
+        return;
+    }
+    
+    const headers = ['Timestamp', 'API Endpoint', 'Method', 'Status', 'Purpose', 'AI Analysis', 'Risk Indicators', 'Confidence Score'];
+    const rows = Array.from(table.querySelectorAll('tbody tr:not([id^="api-details-"]):not([style*="display: none"])'));
+    
+    if (format === 'csv') {
+        let csvContent = headers.join(',') + '\n';
+        
+        rows.forEach(row => {
+            const cells = Array.from(row.querySelectorAll('td:not(:last-child)'));
+            const rowData = cells.map(cell => {
+                let content = cell.textContent.trim().replace(/"/g, '""');
+                content = content.replace(/[^\w\s\-.,;:()]/g, '');
+                return `"${content}"`;
+            });
+            csvContent += rowData.join(',') + '\n';
+        });
+        
+        downloadFile(csvContent, 'api_analysis_export.csv', 'text/csv');
+    }
+}
+
+function getScoreColor(score) {
+    if (score >= 80) return '#00ff88';
+    if (score >= 60) return '#ffaa00';
+    if (score >= 40) return '#ff8800';
+    return '#ff4444';
+}
+
+function getConfidenceColor(confidence) {
+    const score = (confidence || 0) * 100;
+    return getScoreColor(score);
+}
+
+function getLogLevelColor(level) {
+    const levelLower = (level || '').toLowerCase();
+    switch (levelLower) {
+        case 'error': return '#ff4444';
+        case 'warn': case 'warning': return '#ffaa00';
+        case 'info': return '#00ff88';
+        case 'debug': return '#888888';
+        default: return '#cccccc';
+    }
+}
+
+function formatAPITimestamp(timestamp) {
+    if (!timestamp) return 'Unknown';
+    try {
+        const date = new Date(timestamp);
+        return date.toLocaleString('en-US', {
+            month: 'short',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
+    } catch {
+        return timestamp.substring(0, 16);
+    }
+}
+
+function truncateText(text, maxLength) {
+    if (!text || text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
+}// Add these functions to main.js for fraud analysis functionality
 
 // Global variable to track current fraud type
 let currentFraudType = null;
@@ -3257,529 +3741,4 @@ function goBackToFraudAnalysis() {
         chatContainer.innerHTML = fraudAnalysisContent;
         showTab('fraud');
     }
-}
-
-
-function goBackToForm(context) {
-    // Clear the chat container and restore the welcome message
-    const chatContainer = document.getElementById('chatContainer');
-    if (chatContainer) {
-        // Create the welcome message content
-        const welcomeContent = `
-            <div class="welcome-message">
-                <h2>Welcome to your Enhanced Jira AI Assistant! 👋</h2>
-                <p>Your Jira, Oracle DB, and Elasticsearch connections are configured and ready. Choose your operation:</p>
-                
-                <div class="feature-tabs">
-                    <button class="tab-button ${context === 'jira' ? 'active' : ''}" onclick="showTab('jira')">
-                        📋 Jira Queries
-                    </button>
-                    <button class="tab-button ${context === 'validation' ? 'active' : ''}" onclick="showTab('validation')">
-                        🔍 Order Validation
-                    </button>
-                    <button class="tab-button ${context === 'security' ? 'active' : ''}" onclick="showTab('security')">
-                        🛡️ Security Analysis
-                    </button>
-                    <button class="tab-button ${context === 'logs' ? 'active' : ''}" onclick="showTab('logs')">
-                        📊 Log Analysis
-                    </button>
-                    <button class="tab-button ${context === 'fraud' ? 'active' : ''}" onclick="showTab('fraud')">
-                        🚨 Fraud Analysis
-                    </button>
-                </div>
-
-                <div class="tab-content ${context === 'jira' ? '' : 'hidden'}" id="jira-tab">
-                    <h3>Jira Query Examples</h3>
-                    <div class="example-queries">
-                        <div class="example-query" onclick="useExampleQuery(this)">
-                            <h4>📋 Find Stories by Assignee</h4>
-                            <p>Show me all stories assigned to John Smith</p>
-                        </div>
-                        <div class="example-query" onclick="useExampleQuery(this)">
-                            <h4>🐛 Search by Issue Type</h4>
-                            <p>Find all bugs in the DEV project</p>
-                        </div>
-                        <div class="example-query" onclick="useExampleQuery(this)">
-                            <h4>📈 Status Filtering</h4>
-                            <p>What are the open epics for this sprint?</p>
-                        </div>
-                        <div class="example-query" onclick="useExampleQuery(this)">
-                            <h4>📅 Date Range Queries</h4>
-                            <p>Show me stories created in the last week</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="tab-content ${context === 'validation' ? '' : 'hidden'}" id="validation-tab">
-                    <h3>Order Validation</h3>
-                    <div class="validation-form">
-                        <div class="form-group">
-                            <label for="orderNumber">Order Number:</label>
-                            <input type="text" id="orderNumber" placeholder="e.g., ORD-123456, ORDER_789" maxlength="20">
-                        </div>
-                        <div class="form-group">
-                            <label for="locationCode">Location Code:</label>
-                            <input type="text" id="locationCode" placeholder="e.g., NYC, LA, CHI" maxlength="5">
-                        </div>
-                        <button class="validate-button" onclick="validateOrder()">
-                            🔍 Validate Order
-                        </button>
-                    </div>
-                </div>
-
-                <div class="tab-content ${context === 'security' ? '' : 'hidden'}" id="security-tab">
-                    <h3>Security Impact Analysis</h3>
-                    <div class="security-form">
-                        <div class="form-group">
-                            <label for="issueKey">Issue Key:</label>
-                            <input type="text" id="issueKey" placeholder="e.g., PROJ-123, DEV-456" maxlength="20">
-                        </div>
-                        <button class="analyze-button" onclick="analyzeIssueSecurity()">
-                            🛡️ Analyze Security Impact
-                        </button>
-                    </div>
-                </div>
-
-                <div class="tab-content ${context === 'logs' ? '' : 'hidden'}" id="logs-tab">
-                    <h3>Log Analysis Options</h3>
-                    <div class="log-analysis-options">
-                        <div class="log-option" onclick="showLogForm('3d-secure')">
-                            <div class="log-option-icon">🔐</div>
-                            <h4>3D Secure</h4>
-                            <p>Analyze 3D Secure authentication logs and transactions</p>
-                        </div>
-                        <div class="log-option" onclick="showLogForm('enforce-xml6')">
-                            <div class="log-option-icon">📋</div>
-                            <h4>Enforce XML6</h4>
-                            <p>Review XML6 enforcement logs and compliance data</p>
-                        </div>
-                        <div class="log-option" onclick="showLogForm('full-auth')">
-                            <div class="log-option-icon">🔑</div>
-                            <h4>Full Auth</h4>
-                            <p>Examine full authentication flow logs and results</p>
-                        </div>
-                        <div class="log-option" onclick="showLogForm('payment-gateway')">
-                            <div class="log-option-icon">💳</div>
-                            <h4>Payment Gateway</h4>
-                            <p>Analyze payment gateway transaction logs</p>
-                        </div>
-                        <div class="log-option" onclick="showLogForm('fraud-detection')">
-                            <div class="log-option-icon">🚨</div>
-                            <h4>Fraud Detection</h4>
-                            <p>Review fraud detection system logs and alerts</p>
-                        </div>
-                        <div class="log-option" onclick="showLogForm('api-gateway')">
-                            <div class="log-option-icon">🌐</div>
-                            <h4>API Gateway</h4>
-                            <p>Monitor API gateway access and performance logs</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="tab-content ${context === 'fraud' ? '' : 'hidden'}" id="fraud-tab">
-                    <h3>Fraud Analysis Options</h3>
-                    <div class="fraud-analysis-options">
-                        <div class="fraud-option" onclick="showFraudForm('digital_fraud')">
-                            <div class="fraud-option-icon">🤖</div>
-                            <h4>Digital Fraud</h4>
-                            <p>Analyze automated/bot-driven fraudulent activities and device fingerprinting</p>
-                        </div>
-                        <div class="fraud-option" onclick="showFraudForm('assisted_fraud')">
-                            <div class="fraud-option-icon">👥</div>
-                            <h4>Assisted Fraud</h4>
-                            <p>Analyze human-assisted fraudulent activities and social engineering</p>
-                        </div>
-                        <div class="fraud-option" onclick="showFraudForm('transaction_fraud')">
-                            <div class="fraud-option-icon">💳</div>
-                            <h4>Transaction Fraud</h4>
-                            <p>Analyze suspicious transaction patterns and payment anomalies</p>
-                        </div>
-                        <div class="fraud-option" onclick="showFraudForm('identity_fraud')">
-                            <div class="fraud-option-icon">🆔</div>
-                            <h4>Identity Fraud</h4>
-                            <p>Analyze identity theft, impersonation and synthetic identity fraud</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        chatContainer.innerHTML = welcomeContent;
-        
-        // Make sure the correct tab is shown and input visibility is set
-        showTab(context);
-        
-        // Clear form inputs and query input based on context
-        if (context === 'validation') {
-            const orderNumber = document.getElementById('orderNumber');
-            const locationCode = document.getElementById('locationCode');
-            if (orderNumber) orderNumber.value = '';
-            if (locationCode) locationCode.value = '';
-        } else if (context === 'security') {
-            const issueKey = document.getElementById('issueKey');
-            if (issueKey) issueKey.value = '';
-        } else if (context === 'jira') {
-            const queryInput = document.getElementById('queryInput');
-            if (queryInput) {
-                queryInput.value = '';
-                queryInput.style.height = 'auto';
-            }
-        }
-        // Note: 'logs' and 'fraud' contexts don't need form clearing since they show option selection
-        
-        // Update current tab
-        currentTab = context;
-    }
-}
-
-// Update the addBackButton function to handle fraud context:
-function addBackButton(context, extraInfo = '') {
-    let buttonText = '';
-    let icon = '';
-    
-    switch(context) {
-        case 'validation':
-            buttonText = 'Back to Order Validation';
-            icon = '🔍';
-            break;
-        case 'security':
-            buttonText = 'Back to Security Analysis';
-            icon = '🛡️';
-            break;
-        case 'logs':
-            buttonText = 'Back to Log Analysis';
-            icon = '📊';
-            break;
-        case 'fraud':
-            buttonText = 'Back to Fraud Analysis';
-            icon = '🚨';
-            break;
-        case 'jira':
-            buttonText = 'Back to Home';
-            icon = '🏠';
-            break;
-        default:
-            buttonText = 'Back';
-            icon = '←';
-    }
-    
-    if (extraInfo) {
-        buttonText += ` ${extraInfo}`;
-    }
-    
-    return `
-        <div style="margin-bottom: 20px;">
-            <button onclick="goBackToForm('${context}')" 
-                    style="background: #333333; color: #ffffff; border: 1px solid #555; padding: 10px 20px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 0.9rem; transition: all 0.2s;"
-                    onmouseover="this.style.background='#444444'; this.style.transform='translateY(-1px)'"
-                    onmouseout="this.style.background='#333333'; this.style.transform='translateY(0)'">
-                <span>${icon}</span>
-                <span>${buttonText}</span>
-            </button>
-        </div>
-    `;
-}
-
-// Update the addBottomActionButton function to handle fraud context:
-function addBottomActionButton(context, resultInfo = '') {
-    let buttonText = '';
-    let icon = '';
-    let action = '';
-    
-    switch(context) {
-        case 'validation':
-            buttonText = 'Validate Another Order';
-            icon = '🔍';
-            action = `goBackToForm('validation')`;
-            break;
-        case 'security':
-            buttonText = 'Analyze Another Issue';
-            icon = '🛡️';
-            action = `goBackToForm('security')`;
-            break;
-        case 'logs':
-            buttonText = 'Search More Logs';
-            icon = '📊';
-            action = `goBackToForm('logs')`;
-            break;
-        case 'fraud':
-            buttonText = 'Analyze Another Session';
-            icon = '🚨';
-            action = `goBackToForm('fraud')`;
-            break;
-        case 'jira':
-            buttonText = 'Ask Another Question';
-            icon = '💬';
-            action = `goBackToForm('jira')`;
-            break;
-        default:
-            buttonText = 'Continue';
-            icon = '→';
-            action = `goBackToForm('jira')`;
-    }
-    
-    return `
-        <div style="margin-top: 25px; text-align: center; border-top: 1px solid #444; padding-top: 20px;">
-            <button onclick="${action}" 
-                    style="background: #000000; color: #ffffff; border: 1px solid #333; padding: 12px 24px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; font-size: 1rem; font-weight: 600; transition: all 0.2s; margin-right: 10px;"
-                    onmouseover="this.style.background='#333333'; this.style.transform='translateY(-2px)'"
-                    onmouseout="this.style.background='#000000'; this.style.transform='translateY(0)'">
-                <span>${icon}</span>
-                <span>${buttonText}</span>
-            </button>
-            
-            ${context !== 'jira' ? `
-                <button onclick="goBackToForm('jira')" 
-                        style="background: #333333; color: #ffffff; border: 1px solid #555; padding: 12px 24px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; font-size: 1rem; font-weight: 600; transition: all 0.2s;"
-                        onmouseover="this.style.background='#444444'; this.style.transform='translateY(-2px)'"
-                        onmouseout="this.style.background='#333333'; this.style.transform='translateY(0)'">
-                    <span>🏠</span>
-                    <span>Back to Home</span>
-                </button>
-            ` : ''}
-        </div>
-    `;
-}
-
-function goBackToForm(context) {
-    // Clear the chat container and restore the welcome message
-    const chatContainer = document.getElementById('chatContainer');
-    if (chatContainer) {
-        // Create the welcome message content
-        const welcomeContent = `
-            <div class="welcome-message">
-                <h2>Welcome to your Enhanced Jira AI Assistant! 👋</h2>
-                <p>Your Jira, Oracle DB, and Elasticsearch connections are configured and ready. Choose your operation:</p>
-                
-                <div class="feature-tabs">
-                    <button class="tab-button ${context === 'jira' ? 'active' : ''}" onclick="showTab('jira')">
-                        📋 Jira Queries
-                    </button>
-                    <button class="tab-button ${context === 'validation' ? 'active' : ''}" onclick="showTab('validation')">
-                        🔍 Order Validation
-                    </button>
-                    <button class="tab-button ${context === 'security' ? 'active' : ''}" onclick="showTab('security')">
-                        🛡️ Security Analysis
-                    </button>
-                    <button class="tab-button ${context === 'logs' ? 'active' : ''}" onclick="showTab('logs')">
-                        📊 Log Analysis
-                    </button>
-                </div>
-
-                <div class="tab-content ${context === 'jira' ? '' : 'hidden'}" id="jira-tab">
-                    <h3>Jira Query Examples</h3>
-                    <div class="example-queries">
-                        <div class="example-query" onclick="useExampleQuery(this)">
-                            <h4>📋 Find Stories by Assignee</h4>
-                            <p>Show me all stories assigned to John Smith</p>
-                        </div>
-                        <div class="example-query" onclick="useExampleQuery(this)">
-                            <h4>🐛 Search by Issue Type</h4>
-                            <p>Find all bugs in the DEV project</p>
-                        </div>
-                        <div class="example-query" onclick="useExampleQuery(this)">
-                            <h4>📈 Status Filtering</h4>
-                            <p>What are the open epics for this sprint?</p>
-                        </div>
-                        <div class="example-query" onclick="useExampleQuery(this)">
-                            <h4>📅 Date Range Queries</h4>
-                            <p>Show me stories created in the last week</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="tab-content ${context === 'validation' ? '' : 'hidden'}" id="validation-tab">
-                    <h3>Order Validation</h3>
-                    <div class="validation-form">
-                        <div class="form-group">
-                            <label for="orderNumber">Order Number:</label>
-                            <input type="text" id="orderNumber" placeholder="e.g., ORD-123456, ORDER_789" maxlength="20">
-                        </div>
-                        <div class="form-group">
-                            <label for="locationCode">Location Code:</label>
-                            <input type="text" id="locationCode" placeholder="e.g., NYC, LA, CHI" maxlength="5">
-                        </div>
-                        <button class="validate-button" onclick="validateOrder()">
-                            🔍 Validate Order
-                        </button>
-                    </div>
-                </div>
-
-                <div class="tab-content ${context === 'security' ? '' : 'hidden'}" id="security-tab">
-                    <h3>Security Impact Analysis</h3>
-                    <div class="security-form">
-                        <div class="form-group">
-                            <label for="issueKey">Issue Key:</label>
-                            <input type="text" id="issueKey" placeholder="e.g., PROJ-123, DEV-456" maxlength="20">
-                        </div>
-                        <button class="analyze-button" onclick="analyzeIssueSecurity()">
-                            🛡️ Analyze Security Impact
-                        </button>
-                    </div>
-                </div>
-
-                <div class="tab-content ${context === 'logs' ? '' : 'hidden'}" id="logs-tab">
-                    <h3>Log Analysis Options</h3>
-                    <div class="log-analysis-options">
-                        <div class="log-option" onclick="showLogForm('3d-secure')">
-                            <div class="log-option-icon">🔐</div>
-                            <h4>3D Secure</h4>
-                            <p>Analyze 3D Secure authentication logs and transactions</p>
-                        </div>
-                        <div class="log-option" onclick="showLogForm('enforce-xml6')">
-                            <div class="log-option-icon">📋</div>
-                            <h4>Enforce XML6</h4>
-                            <p>Review XML6 enforcement logs and compliance data</p>
-                        </div>
-                        <div class="log-option" onclick="showLogForm('full-auth')">
-                            <div class="log-option-icon">🔑</div>
-                            <h4>Full Auth</h4>
-                            <p>Examine full authentication flow logs and results</p>
-                        </div>
-                        <div class="log-option" onclick="showLogForm('payment-gateway')">
-                            <div class="log-option-icon">💳</div>
-                            <h4>Payment Gateway</h4>
-                            <p>Analyze payment gateway transaction logs</p>
-                        </div>
-                        <div class="log-option" onclick="showLogForm('fraud-detection')">
-                            <div class="log-option-icon">🚨</div>
-                            <h4>Fraud Detection</h4>
-                            <p>Review fraud detection system logs and alerts</p>
-                        </div>
-                        <div class="log-option" onclick="showLogForm('api-gateway')">
-                            <div class="log-option-icon">🌐</div>
-                            <h4>API Gateway</h4>
-                            <p>Monitor API gateway access and performance logs</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        chatContainer.innerHTML = welcomeContent;
-        
-        // Make sure the correct tab is shown and input visibility is set
-        showTab(context);
-        
-        // Clear form inputs and query input based on context
-        if (context === 'validation') {
-            const orderNumber = document.getElementById('orderNumber');
-            const locationCode = document.getElementById('locationCode');
-            if (orderNumber) orderNumber.value = '';
-            if (locationCode) locationCode.value = '';
-        } else if (context === 'security') {
-            const issueKey = document.getElementById('issueKey');
-            if (issueKey) issueKey.value = '';
-        } else if (context === 'jira') {
-            const queryInput = document.getElementById('queryInput');
-            if (queryInput) {
-                queryInput.value = '';
-                queryInput.style.height = 'auto';
-            }
-        }
-        // Note: 'logs' context doesn't need form clearing since it shows option selection
-        
-        // Update current tab
-        currentTab = context;
-    }
-}
-
-// Update the addBackButton function to handle logs context:
-function addBackButton(context, extraInfo = '') {
-    let buttonText = '';
-    let icon = '';
-    
-    switch(context) {
-        case 'validation':
-            buttonText = 'Back to Order Validation';
-            icon = '🔍';
-            break;
-        case 'security':
-            buttonText = 'Back to Security Analysis';
-            icon = '🛡️';
-            break;
-        case 'logs':
-            buttonText = 'Back to Log Analysis';
-            icon = '📊';
-            break;
-        case 'jira':
-            buttonText = 'Back to Home';
-            icon = '🏠';
-            break;
-        default:
-            buttonText = 'Back';
-            icon = '←';
-    }
-    
-    if (extraInfo) {
-        buttonText += ` ${extraInfo}`;
-    }
-    
-    return `
-        <div style="margin-bottom: 20px;">
-            <button onclick="goBackToForm('${context}')" 
-                    style="background: #333333; color: #ffffff; border: 1px solid #555; padding: 10px 20px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 0.9rem; transition: all 0.2s;"
-                    onmouseover="this.style.background='#444444'; this.style.transform='translateY(-1px)'"
-                    onmouseout="this.style.background='#333333'; this.style.transform='translateY(0)'">
-                <span>${icon}</span>
-                <span>${buttonText}</span>
-            </button>
-        </div>
-    `;
-}
-
-// Update the addBottomActionButton function to handle logs context:
-function addBottomActionButton(context, resultInfo = '') {
-    let buttonText = '';
-    let icon = '';
-    let action = '';
-    
-    switch(context) {
-        case 'validation':
-            buttonText = 'Validate Another Order';
-            icon = '🔍';
-            action = `goBackToForm('validation')`;
-            break;
-        case 'security':
-            buttonText = 'Analyze Another Issue';
-            icon = '🛡️';
-            action = `goBackToForm('security')`;
-            break;
-        case 'logs':
-            buttonText = 'Search More Logs';
-            icon = '📊';
-            action = `goBackToForm('logs')`;
-            break;
-        case 'jira':
-            buttonText = 'Ask Another Question';
-            icon = '💬';
-            action = `goBackToForm('jira')`;
-            break;
-        default:
-            buttonText = 'Continue';
-            icon = '→';
-            action = `goBackToForm('jira')`;
-    }
-    
-    return `
-        <div style="margin-top: 25px; text-align: center; border-top: 1px solid #444; padding-top: 20px;">
-            <button onclick="${action}" 
-                    style="background: #000000; color: #ffffff; border: 1px solid #333; padding: 12px 24px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; font-size: 1rem; font-weight: 600; transition: all 0.2s; margin-right: 10px;"
-                    onmouseover="this.style.background='#333333'; this.style.transform='translateY(-2px)'"
-                    onmouseout="this.style.background='#000000'; this.style.transform='translateY(0)'">
-                <span>${icon}</span>
-                <span>${buttonText}</span>
-            </button>
-            
-            ${context !== 'jira' ? `
-                <button onclick="goBackToForm('jira')" 
-                        style="background: #333333; color: #ffffff; border: 1px solid #555; padding: 12px 24px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; font-size: 1rem; font-weight: 600; transition: all 0.2s;"
-                        onmouseover="this.style.background='#444444'; this.style.transform='translateY(-2px)'"
-                        onmouseout="this.style.background='#333333'; this.style.transform='translateY(0)'">
-                    <span>🏠</span>
-                    <span>Back to Home</span>
-                </button>
-            ` : ''}
-        </div>
-    `;
 }
