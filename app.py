@@ -631,6 +631,163 @@ def get_fraud_analysis_status(session_id):
             'error': str(e)
         }), 500
 
+# Add this test endpoint to app.py to debug the AI analysis
+
+@app.route('/api/test-fraud-analysis', methods=['POST'])
+def test_fraud_analysis():
+    """Test endpoint to debug fraud analysis issues"""
+    try:
+        data = request.get_json()
+        session_id = data.get('session_id', 'test_session_123')
+        
+        # Import the service
+        from services.fraud_analysis_service import FraudAnalysisService
+        fraud_service = FraudAnalysisService()
+        
+        # Test 1: Basic service initialization
+        test_results = {
+            'service_initialized': True,
+            'openai_configured': bool(Config.OPENAI_API_KEY),
+            'elasticsearch_configured': bool(Config.ELASTICSEARCH_HOST),
+        }
+        
+        # Test 2: Gather session logs
+        try:
+            session_logs = fraud_service._gather_session_logs(session_id)
+            test_results['logs_gathered'] = True
+            test_results['log_counts'] = {k: len(v) for k, v in session_logs.items()}
+            test_results['total_logs'] = sum(len(v) for v in session_logs.values())
+        except Exception as e:
+            test_results['logs_gathered'] = False
+            test_results['logs_error'] = str(e)
+            session_logs = {}
+        
+        # Test 3: Test AI analysis on a sample log entry
+        if session_logs:
+            # Find a sample log entry
+            sample_log = None
+            for log_type, logs in session_logs.items():
+                if logs:
+                    sample_log = logs[0]
+                    break
+            
+            if sample_log:
+                try:
+                    ai_analysis = fraud_service._analyze_api_call_with_ai(sample_log, 'digital_fraud')
+                    test_results['ai_analysis_test'] = True
+                    test_results['sample_ai_result'] = ai_analysis
+                except Exception as e:
+                    test_results['ai_analysis_test'] = False
+                    test_results['ai_analysis_error'] = str(e)
+        
+        # Test 4: Create mock data for testing UI
+        mock_analysis = {
+            'success': True,
+            'session_id': session_id,
+            'fraud_type': 'digital_fraud',
+            'analysis': {
+                'monitoring_analysis': {
+                    'api_call_analysis': [
+                        {
+                            'api_endpoint': '/api/fraud/check',
+                            'http_method': 'POST',
+                            'request_purpose': 'Fraud risk assessment for transaction',
+                            'response_analysis': 'API call completed successfully with risk score calculated',
+                            'is_successful': True,
+                            'error_details': None,
+                            'fraud_relevance': 'Primary fraud detection mechanism',
+                            'risk_indicators': ['high_velocity_transaction', 'new_device'],
+                            'business_impact': 'Critical for transaction approval decision',
+                            'recommendations': 'Continue monitoring velocity patterns',
+                            'processing_time_ms': 250,
+                            'status_code': 200,
+                            'confidence_score': 0.85,
+                            'timestamp': '2025-01-03T10:30:00Z',
+                            'log_level': 'INFO',
+                            'source_type': 'api_gateway',
+                            'session_id': session_id,
+                            'original_message': 'Fraud check completed for session',
+                            'component': 'fraud-service',
+                            'raw_log_id': 'log_123'
+                        },
+                        {
+                            'api_endpoint': '/api/payment/process',
+                            'http_method': 'POST',
+                            'request_purpose': 'Process payment transaction',
+                            'response_analysis': 'Payment processing failed due to insufficient funds',
+                            'is_successful': False,
+                            'error_details': 'Insufficient funds in account',
+                            'fraud_relevance': 'Payment failure could indicate account compromise',
+                            'risk_indicators': ['payment_failure', 'insufficient_funds'],
+                            'business_impact': 'Transaction rejected, revenue loss',
+                            'recommendations': 'Verify account status and fraud indicators',
+                            'processing_time_ms': 150,
+                            'status_code': 402,
+                            'confidence_score': 0.92,
+                            'timestamp': '2025-01-03T10:30:05Z',
+                            'log_level': 'ERROR',
+                            'source_type': 'payment_gateway',
+                            'session_id': session_id,
+                            'original_message': 'Payment processing failed',
+                            'component': 'payment-service',
+                            'raw_log_id': 'log_124'
+                        }
+                    ],
+                    'ai_insights': {
+                        'overall_session_health': 'Session shows mixed results with successful fraud detection but payment processing issues',
+                        'key_findings': ['Fraud detection working properly', 'Payment processing failed', 'High risk indicators present'],
+                        'fraud_risk_assessment': 'Medium risk due to payment failures and velocity patterns',
+                        'critical_issues': ['Payment processing failure', 'Insufficient funds error'],
+                        'positive_indicators': ['Fraud detection system active', 'Risk scoring operational'],
+                        'recommended_actions': [
+                            'Review account balance verification process',
+                            'Implement enhanced fraud monitoring for failed payments',
+                            'Consider payment retry mechanisms'
+                        ],
+                        'session_score': 65,
+                        'confidence_level': 'high'
+                    },
+                    'summary_statistics': {
+                        'total_api_calls': 2,
+                        'successful_calls': 1,
+                        'failed_calls': 1,
+                        'success_rate': 0.5,
+                        'unique_endpoints': 2,
+                        'error_types': {'business_logic_errors': 1}
+                    }
+                },
+                'risk_assessment': {
+                    'level': 'MEDIUM',
+                    'score': 65,
+                    'color': '#ffaa00',
+                    'factors': ['Payment processing failure', 'High velocity transaction patterns']
+                },
+                'recommendations': [
+                    'Review payment processing workflow',
+                    'Enhance account balance verification',
+                    'Monitor transaction velocity patterns'
+                ]
+            }
+        }
+        
+        test_results['mock_analysis'] = mock_analysis
+        
+        return jsonify({
+            'success': True,
+            'test_results': test_results,
+            'instructions': {
+                'frontend_test': 'Use the mock_analysis data to test the frontend display',
+                'backend_debug': 'Check the test_results for backend issues'
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'debug_info': 'Test endpoint failed'
+        }), 500
+
 if __name__ == '__main__':
     app = create_app()
     
