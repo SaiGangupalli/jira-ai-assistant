@@ -2872,9 +2872,7 @@ async function analyzeFraudSession(fraudType) {
             analyzeBtn.innerHTML = `<span>${config.icon}</span><span>Analyze ${config.title.replace(' Analysis', '')}</span>`;
         }
     }
-}
-
-function createFraudMonitoringSection(monitoringAnalysis) {
+}function createFraudMonitoringSection(monitoringAnalysis) {
     const apiCallAnalysis = monitoringAnalysis.api_call_analysis || [];
     const aiInsights = monitoringAnalysis.ai_insights || {};
     const summaryStats = monitoringAnalysis.summary_statistics || {};
