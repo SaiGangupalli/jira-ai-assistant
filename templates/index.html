@@ -59,7 +59,12 @@
 
                     <div class="tab-content" id="jira-tab">
                         <h3>Jira Query Examples</h3>
+                        <p style="color: #cccccc; margin-bottom: 20px; text-align: center;">
+                            Ask questions in natural language or request security analysis for specific tickets
+                        </p>
+                        
                         <div class="example-queries">
+                            <!-- Regular Jira Query Examples -->
                             <div class="example-query" onclick="useExampleQuery(this)">
                                 <h4>📋 Find Stories by Assignee</h4>
                                 <p>Show me all stories assigned to John Smith</p>
@@ -75,6 +80,39 @@
                             <div class="example-query" onclick="useExampleQuery(this)">
                                 <h4>📅 Date Range Queries</h4>
                                 <p>Show me stories created in the last week</p>
+                            </div>
+                            
+                            <!-- Security Analysis Examples -->
+                            <div class="example-query security-example" onclick="useExampleQuery(this)" style="border-left-color: #00ff88;">
+                                <h4>🔒 Fraud & Security Analysis</h4>
+                                <p>Do fraud & security analysis for ticket PROJ-123</p>
+                            </div>
+                            <div class="example-query security-example" onclick="useExampleQuery(this)" style="border-left-color: #00ff88;">
+                                <h4>🛡️ Security Review</h4>
+                                <p>Run security analysis for ticket DEV-456</p>
+                            </div>
+                            <div class="example-query security-example" onclick="useExampleQuery(this)" style="border-left-color: #ff6b6b;">
+                                <h4>🚨 Fraud Analysis</h4>
+                                <p>Analyze ticket SUPPORT-789 for fraud</p>
+                            </div>
+                            <div class="example-query security-example" onclick="useExampleQuery(this)" style="border-left-color: #ffa500;">
+                                <h4>📊 Security Assessment</h4>
+                                <p>Security review for this ticket INCIDENT-999</p>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 25px; padding: 20px; background: #1a1a1a; border-radius: 10px; border: 1px solid #444;">
+                            <h4 style="color: #00ff88; margin-bottom: 15px;">💡 Pro Tips</h4>
+                            <div style="color: #cccccc; font-size: 0.9rem; line-height: 1.6;">
+                                <div style="margin-bottom: 8px;">
+                                    <strong>Regular Queries:</strong> Ask about Jira tickets in natural language
+                                </div>
+                                <div style="margin-bottom: 8px;">
+                                    <strong>Security Analysis:</strong> Use phrases like "fraud analysis", "security analysis", or "fraud & security analysis"
+                                </div>
+                                <div>
+                                    <strong>Ticket Format:</strong> Include ticket keys like PROJ-123, DEV-456, etc.
+                                </div>
                             </div>
                         </div>
                     </div>
