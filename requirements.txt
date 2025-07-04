@@ -1,0 +1,15 @@
+Flask==2.3.3
+Flask-CORS==4.0.0
+requests==2.31.0
+openai==0.28.1
+python-dotenv==1.0.0
+gunicorn==21.2.0
+cx-Oracle==8.3.0
+# Enhanced regular expressions (if not already present)
+regex==2023.12.25
+
+# For better temporary file handling (usually included with Python)
+# tempfile (built-in module)
+
+# UUID generation (built-in module)
+# uuid (built-in module)
