@@ -954,8 +954,130 @@ def test_fraud_ui():
     }
     
     return jsonify(mock_result)
+@app.route('/api/jenkins-jobs', methods=['GET'])
+def get_jenkins_jobs():
+    """Get available Jenkins jobs"""
+    if not jenkins_service:
+        return jsonify({
+            'success': False,
+            'error': 'Jenkins service not available. Please check Jenkins configuration.'
+        }), 503
+    
+    try:
+        result = jenkins_service.get_available_jobs()
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error getting Jenkins jobs: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
-# Update your health check endpoint to include fraud analysis service status
+@app.route('/api/jenkins-job-info/<job_type>', methods=['GET'])
+def get_jenkins_job_info(job_type):
+    """Get information about a specific Jenkins job"""
+    if not jenkins_service:
+        return jsonify({
+            'success': False,
+            'error': 'Jenkins service not available'
+        }), 503
+    
+    try:
+        result = jenkins_service.get_job_info(job_type)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error getting job info for {job_type}: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/jenkins-trigger-job', methods=['POST'])
+def trigger_jenkins_job():
+    """Trigger a Jenkins job with parameters"""
+    if not jenkins_service:
+        return jsonify({
+            'success': False,
+            'error': 'Jenkins service not available. Please check Jenkins configuration.'
+        }), 503
+    
+    try:
+        data = request.get_json()
+        
+        if not data or not data.get('job_type'):
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: job_type'
+            }), 400
+        
+        job_type = str(data['job_type']).strip()
+        parameters = data.get('parameters', {})
+        
+        # Validate parameters before triggering
+        validation_result = jenkins_service.validate_parameters(job_type, parameters)
+        
+        if not validation_result['success']:
+            return jsonify({
+                'success': False,
+                'error': 'Parameter validation failed',
+                'validation_errors': validation_result['errors'],
+                'validation_warnings': validation_result.get('warnings', [])
+            }), 400
+        
+        # Trigger the job
+        result = jenkins_service.trigger_job(job_type, validation_result['validated_parameters'])
+        
+        # Log the job trigger for auditing
+        if result['success']:
+            logger.info(f"Jenkins job {job_type} triggered successfully with parameters: {list(parameters.keys())}")
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Jenkins job trigger error: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to trigger job: {str(e)}'
+        }), 500
+
+@app.route('/api/jenkins-build-status/<job_type>/<int:build_number>', methods=['GET'])
+def get_jenkins_build_status(job_type, build_number):
+    """Get status of a specific Jenkins build"""
+    if not jenkins_service:
+        return jsonify({
+            'success': False,
+            'error': 'Jenkins service not available'
+        }), 503
+    
+    try:
+        result = jenkins_service.get_build_status(job_type, build_number)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error getting build status: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/jenkins-health', methods=['GET'])
+def jenkins_health():
+    """Check Jenkins connection health"""
+    if not jenkins_service:
+        return jsonify({
+            'success': False,
+            'error': 'Jenkins service not available'
+        }), 503
+    
+    try:
+        result = jenkins_service.test_connection()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+# Update the health check endpoint to include Jenkins
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
@@ -967,7 +1089,8 @@ def health_check():
             'security_service': security_service is not None,
             'order_validator': order_validator is not None,
             'elasticsearch_service': elasticsearch_service is not None,
-            'fraud_analysis_service': fraud_analysis_service is not None  # Add this line
+            'fraud_analysis_service': fraud_analysis_service is not None,
+            'jenkins_service': jenkins_service is not None  # Add this line
         }
     }
     
@@ -977,7 +1100,8 @@ def health_check():
             'jira_configured': bool(Config.JIRA_URL and Config.JIRA_USERNAME and Config.JIRA_TOKEN),
             'openai_configured': bool(Config.OPENAI_API_KEY),
             'oracle_configured': bool(Config.ORACLE_DSN and Config.ORACLE_USER),
-            'elasticsearch_configured': bool(Config.ELASTICSEARCH_HOST and Config.ELASTICSEARCH_USERNAME)
+            'elasticsearch_configured': bool(Config.ELASTICSEARCH_HOST and Config.ELASTICSEARCH_USERNAME),
+            'jenkins_configured': bool(Config.JENKINS_URL and Config.JENKINS_USERNAME and Config.JENKINS_TOKEN)  # Add this line
         })
         
         # Add log analysis configuration info
@@ -991,22 +1115,31 @@ def health_check():
             'supported_types': ['digital_fraud', 'assisted_fraud', 'transaction_fraud', 'identity_fraud'] if fraud_analysis_service else []
         }
         
+        # Add Jenkins info
+        status['jenkins'] = {
+            'service_available': jenkins_service is not None,
+            'configured': bool(Config.JENKINS_URL and Config.JENKINS_USERNAME and Config.JENKINS_TOKEN),
+            'available_jobs': ['fraud_story_prediction'] if jenkins_service else []
+        }
+        
     except:
         status.update({
             'jira_configured': False,
             'openai_configured': False,
             'oracle_configured': False,
             'elasticsearch_configured': False,
+            'jenkins_configured': False,
             'fraud_analysis': {'service_available': False},
+            'jenkins': {'service_available': False},
             'config_error': 'Configuration module not available'
         })
         
     return jsonify(status)
 
-# Also update your test connections endpoint to include fraud analysis
+# Update the test connections endpoint to include Jenkins
 @app.route('/api/test-connections', methods=['GET'])
 def test_connections():
-    """Test all service connections including fraud analysis"""
+    """Test all service connections including Jenkins"""
     results = {}
     
     # Test Jira connection
@@ -1042,7 +1175,6 @@ def test_connections():
     # Test Fraud Analysis service
     if fraud_analysis_service:
         try:
-            # Test basic functionality
             fraud_types = fraud_analysis_service.get_fraud_types()
             results['fraud_analysis'] = {
                 'success': True,
@@ -1055,6 +1187,16 @@ def test_connections():
             results['fraud_analysis'] = {'success': False, 'error': str(e)}
     else:
         results['fraud_analysis'] = {'success': False, 'error': 'Service not initialized'}
+    
+    # Test Jenkins connection
+    if jenkins_service:
+        try:
+            jenkins_result = jenkins_service.test_connection()
+            results['jenkins'] = jenkins_result
+        except Exception as e:
+            results['jenkins'] = {'success': False, 'error': str(e)}
+    else:
+        results['jenkins'] = {'success': False, 'error': 'Service not initialized'}
     
     return jsonify(results)
 
