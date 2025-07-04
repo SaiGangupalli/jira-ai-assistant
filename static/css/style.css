@@ -2550,3 +2550,292 @@ table tr:nth-child(even) td {
         padding: 20px 15px;
     }
 }
+
+/* Add these styles to your existing static/css/style.css */
+
+/* Security Analysis Styles */
+.security-analysis-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.security-command-section {
+    background: #2d2d30;
+    padding: 25px;
+    border-radius: 12px;
+    margin-bottom: 25px;
+    border: 1px solid #444;
+}
+
+.security-command-section h4 {
+    color: #00ff88;
+    margin-bottom: 15px;
+    font-size: 1.2rem;
+}
+
+.input-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.form-input {
+    flex: 1;
+    padding: 12px 15px;
+    background: #1a1a1a;
+    border: 1px solid #555;
+    border-radius: 6px;
+    color: #ffffff;
+    font-size: 1rem;
+    transition: border-color 0.3s ease;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: #00ff88;
+    box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.2);
+}
+
+.form-input::placeholder {
+    color: #888;
+}
+
+.btn {
+    padding: 12px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-primary {
+    background: linear-gradient(45deg, #00ff88, #00cc6a);
+    color: #000;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: linear-gradient(45deg, #00cc6a, #009952);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3);
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.security-examples {
+    margin-top: 20px;
+}
+
+.security-examples h5 {
+    color: #cccccc;
+    margin-bottom: 12px;
+    font-size: 1rem;
+}
+
+.example-commands {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.example-cmd-btn {
+    background: #3a3a3a;
+    color: #cccccc;
+    border: 1px solid #555;
+    padding: 8px 15px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+}
+
+.example-cmd-btn:hover {
+    background: #4a4a4a;
+    border-color: #00ff88;
+    color: #00ff88;
+}
+
+.security-features {
+    background: #2d2d30;
+    padding: 25px;
+    border-radius: 12px;
+    border: 1px solid #444;
+}
+
+.security-features h4 {
+    color: #00ff88;
+    margin-bottom: 20px;
+    text-align: center;
+    font-size: 1.3rem;
+}
+
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+}
+
+.feature-item {
+    background: #3a3a3a;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    border: 1px solid #555;
+    transition: transform 0.3s ease, border-color 0.3s ease;
+}
+
+.feature-item:hover {
+    transform: translateY(-5px);
+    border-color: #00ff88;
+}
+
+.feature-icon {
+    font-size: 2.5rem;
+    margin-bottom: 15px;
+}
+
+.feature-item h5 {
+    color: #ffffff;
+    margin-bottom: 10px;
+    font-size: 1.1rem;
+}
+
+.feature-item p {
+    color: #cccccc;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+/* Risk Summary Cards */
+.risk-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.risk-card {
+    background: #2d2d30;
+    padding: 15px;
+    border-radius: 8px;
+    text-align: center;
+    border: 1px solid #444;
+    transition: transform 0.3s ease;
+}
+
+.risk-card:hover {
+    transform: scale(1.05);
+}
+
+/* Download Button */
+.download-report-btn {
+    background: linear-gradient(45deg, #00ff88, #00cc6a);
+    color: #000;
+    border: none;
+    padding: 15px 30px;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.download-report-btn:hover {
+    background: linear-gradient(45deg, #00cc6a, #009952);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 255, 136, 0.4);
+}
+
+/* Custom Alerts */
+.custom-alert {
+    animation: slideInRight 0.3s ease;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.alert-success {
+    background: #1a2d1a;
+    border: 1px solid #00ff88;
+    color: #00ff88;
+}
+
+.alert-error {
+    background: #2d1a1a;
+    border: 1px solid #ff6b6b;
+    color: #ff6b6b;
+}
+
+.alert-info {
+    background: #1a1a2d;
+    border: 1px solid #4a9eff;
+    color: #4a9eff;
+}
+
+/* Loading Spinner */
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #444;
+    border-top: 4px solid #00ff88;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .security-analysis-container {
+        padding: 0 15px;
+    }
+    
+    .input-group {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .form-input {
+        margin-bottom: 10px;
+    }
+    
+    .feature-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .risk-summary {
+        grid-template-columns: 1fr;
+    }
+    
+    .example-commands {
+        flex-direction: column;
+    }
+    
+    .example-cmd-btn {
+        width: 100%;
+        text-align: center;
+    }
+}
