@@ -2839,3 +2839,205 @@ table tr:nth-child(even) td {
         text-align: center;
     }
 }
+
+/* Security Analysis Examples in Jira Tab */
+.example-query.security-example {
+    position: relative;
+    background: linear-gradient(135deg, #1a1a1a 0%, #1a2d1a 100%);
+    border: 1px solid #444;
+    transition: all 0.3s ease;
+}
+
+.example-query.security-example:hover {
+    background: linear-gradient(135deg, #2d2d30 0%, #1a3d1a 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0, 255, 136, 0.2);
+    border-color: #00ff88;
+}
+
+.example-query.security-example::before {
+    content: '🔒';
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    font-size: 1.2rem;
+    opacity: 0.7;
+}
+
+.example-query.security-example h4 {
+    color: #00ff88;
+    font-weight: 600;
+}
+
+.example-query.security-example p {
+    color: #cccccc;
+    font-style: italic;
+}
+
+/* Enhanced input placeholder for security queries */
+#queryInput::placeholder {
+    color: #888;
+    transition: color 0.3s ease;
+}
+
+#queryInput:focus::placeholder {
+    color: #666;
+}
+
+/* Security query detection indicator */
+.security-query-detected {
+    background: linear-gradient(45deg, #1a2d1a, #1a1a2d) !important;
+    border-color: #00ff88 !important;
+    box-shadow: 0 0 10px rgba(0, 255, 136, 0.3) !important;
+}
+
+/* Loading spinner for security analysis */
+.security-loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #444;
+    border-top: 4px solid #00ff88;
+    border-radius: 50%;
+    animation: securitySpin 1s linear infinite;
+}
+
+@keyframes securitySpin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Security analysis result cards */
+.security-result-card {
+    background: linear-gradient(135deg, #1a2d1a, #1a1a2d);
+    border: 2px solid #00ff88;
+    border-radius: 12px;
+    padding: 25px;
+    margin: 15px 0;
+    animation: securitySlideIn 0.5s ease-out;
+}
+
+@keyframes securitySlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Risk level badges */
+.risk-badge {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.risk-badge.low {
+    background: #1a2d1a;
+    color: #00ff88;
+    border: 1px solid #00ff88;
+}
+
+.risk-badge.medium {
+    background: #2d2d1a;
+    color: #ffaa00;
+    border: 1px solid #ffaa00;
+}
+
+.risk-badge.high {
+    background: #2d1a1a;
+    color: #ff6b6b;
+    border: 1px solid #ff6b6b;
+}
+
+.risk-badge.critical {
+    background: #3d1a1a;
+    color: #ff4444;
+    border: 1px solid #ff4444;
+    animation: criticalPulse 2s infinite;
+}
+
+@keyframes criticalPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* Download button for security reports */
+.security-download-btn {
+    background: linear-gradient(45deg, #00ff88, #00cc6a);
+    color: #000;
+    border: none;
+    padding: 15px 30px;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+}
+
+.security-download-btn:hover {
+    background: linear-gradient(45deg, #00cc6a, #009952);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 255, 136, 0.4);
+}
+
+.security-download-btn:active {
+    transform: translateY(0);
+}
+
+/* Pro tips section styling */
+.pro-tips {
+    background: #1a1a1a;
+    border-radius: 10px;
+    border: 1px solid #444;
+    padding: 20px;
+    margin-top: 25px;
+}
+
+.pro-tips h4 {
+    color: #00ff88;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.pro-tips .tip-item {
+    margin-bottom: 8px;
+    color: #cccccc;
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.pro-tips .tip-item strong {
+    color: #ffffff;
+}
+
+/* Responsive adjustments for security features */
+@media (max-width: 768px) {
+    .example-query.security-example::before {
+        font-size: 1rem;
+        top: 8px;
+        right: 10px;
+    }
+    
+    .security-result-card {
+        padding: 15px;
+        margin: 10px 0;
+    }
+    
+    .security-download-btn {
+        padding: 12px 20px;
+        font-size: 0.9rem;
+    }
+}
