@@ -5327,3 +5327,358 @@ if (typeof module !== 'undefined' && module.exports) {
         testJenkinsJobTrigger
     };
 }
+
+// Global variable to track security analysis state
+let currentSecurityAnalysis = null;
+
+// Function to show security analysis interface
+function showSecurityAnalysis() {
+    const chatContainer = document.getElementById('chatContainer');
+    if (!chatContainer) return;
+    
+    const securityAnalysisContent = `
+        <div class="tab-content" id="security-analysis-tab">
+            <h3>🔒 Fraud & Security Analysis</h3>
+            <p style="color: #cccccc; margin-bottom: 25px; text-align: center; font-size: 1rem;">
+                AI-powered fraud and security analysis for Jira tickets with comprehensive reporting
+            </p>
+            
+            <div class="security-analysis-container">
+                <div class="security-command-section">
+                    <h4>Natural Language Commands</h4>
+                    <p style="color: #888; margin-bottom: 15px; font-size: 0.9rem;">
+                        Type commands like: "Do fraud & security analysis for ticket PROJ-123"
+                    </p>
+                    
+                    <div class="input-group">
+                        <input type="text" 
+                               id="security-command-input" 
+                               placeholder="Do fraud & security analysis for ticket TICKET-123"
+                               class="form-input"
+                               style="flex: 1; margin-right: 10px;">
+                        <button onclick="processSecurityCommand()" 
+                                class="btn btn-primary"
+                                id="security-analyze-btn">
+                            <span>🤖</span>
+                            <span>Analyze</span>
+                        </button>
+                    </div>
+                    
+                    <div class="security-examples" style="margin-top: 15px;">
+                        <h5>Example Commands:</h5>
+                        <div class="example-commands">
+                            <button class="example-cmd-btn" onclick="setSecurityCommand('Do fraud & security analysis for ticket PROJ-123')">
+                                Fraud & Security Analysis
+                            </button>
+                            <button class="example-cmd-btn" onclick="setSecurityCommand('Run security analysis for ticket DEV-456')">
+                                Security Analysis
+                            </button>
+                            <button class="example-cmd-btn" onclick="setSecurityCommand('Analyze ticket SUPPORT-789 for fraud')">
+                                Fraud Analysis
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="security-features" style="margin-top: 30px;">
+                    <h4>Analysis Features</h4>
+                    <div class="feature-grid">
+                        <div class="feature-item">
+                            <div class="feature-icon">🔍</div>
+                            <h5>Comprehensive Analysis</h5>
+                            <p>AI analyzes ticket content, comments, attachments, and change history</p>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon">⚠️</div>
+                            <h5>Risk Assessment</h5>
+                            <p>Fraud risk scoring (1-10) and security vulnerability identification</p>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon">📊</div>
+                            <h5>Impact Analysis</h5>
+                            <p>Business impact assessment and compliance concern evaluation</p>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon">📄</div>
+                            <h5>Word Reports</h5>
+                            <p>Professional Word documents with detailed findings and recommendations</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    chatContainer.innerHTML = securityAnalysisContent;
+    showTab('security-analysis');
+    
+    // Add event listener for Enter key
+    const commandInput = document.getElementById('security-command-input');
+    if (commandInput) {
+        commandInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                processSecurityCommand();
+            }
+        });
+        commandInput.focus();
+    }
+}
+
+// Function to set example commands
+function setSecurityCommand(command) {
+    const commandInput = document.getElementById('security-command-input');
+    if (commandInput) {
+        commandInput.value = command;
+        commandInput.focus();
+    }
+}
+
+// Main function to process security analysis commands
+async function processSecurityCommand() {
+    const commandInput = document.getElementById('security-command-input');
+    const analyzeBtn = document.getElementById('security-analyze-btn');
+    
+    if (!commandInput || !commandInput.value.trim()) {
+        showAlert('Please enter a security analysis command');
+        return;
+    }
+    
+    const command = commandInput.value.trim();
+    
+    // Show loading state
+    if (analyzeBtn) {
+        analyzeBtn.disabled = true;
+        analyzeBtn.innerHTML = '<span>⏳</span><span>Processing...</span>';
+    }
+    
+    // Add user message
+    addMessage(`🔒 **Security Analysis Command:** ${command}`, false);
+    
+    // Add AI processing message
+    const processingMessage = addMessage(`
+        <div style="text-align: center; padding: 25px; background: #1a2d1a; border-radius: 10px; border: 1px solid #00ff88;">
+            <div style="font-size: 2.5rem; margin-bottom: 15px;">🤖</div>
+            <h4 style="color: #00ff88; margin-bottom: 15px;">AI Security Analysis in Progress</h4>
+            <p style="color: #cccccc; margin-bottom: 20px;">Performing comprehensive fraud and security analysis...</p>
+            
+            <div style="background: #2d2d30; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <div style="color: #888; font-size: 0.9rem; line-height: 1.6;">
+                    <div>🔍 Extracting comprehensive ticket data...</div>
+                    <div>🧠 AI analyzing content for fraud indicators...</div>
+                    <div>⚡ Assessing security vulnerabilities...</div>
+                    <div>📊 Evaluating business impact and compliance...</div>
+                    <div>📄 Generating professional Word report...</div>
+                </div>
+            </div>
+            
+            <div class="loading-spinner" style="margin: 0 auto;"></div>
+        </div>
+    `, false);
+    
+    try {
+        const response = await fetch('/api/process-security-command', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ command: command })
+        });
+
+        const result = await response.json();
+        
+        // Remove processing message
+        if (processingMessage) {
+            processingMessage.remove();
+        }
+
+        if (result.success) {
+            currentSecurityAnalysis = result;
+            displaySecurityAnalysisResults(result);
+        } else {
+            addMessage(`❌ **Analysis Failed:** ${result.error}`, false);
+        }
+        
+    } catch (error) {
+        console.error('Security analysis error:', error);
+        if (processingMessage) {
+            processingMessage.remove();
+        }
+        addMessage(`❌ **Error:** Failed to process security analysis - ${error.message}`, false);
+    } finally {
+        // Reset button state
+        if (analyzeBtn) {
+            analyzeBtn.disabled = false;
+            analyzeBtn.innerHTML = '<span>🤖</span><span>Analyze</span>';
+        }
+        
+        // Clear input
+        if (commandInput) {
+            commandInput.value = '';
+        }
+    }
+}
+
+// Function to display security analysis results
+function displaySecurityAnalysisResults(result) {
+    const resultHtml = `
+        <div style="background: #1a2d1a; border-radius: 12px; padding: 25px; border: 2px solid #00ff88; margin: 15px 0;">
+            <div style="text-align: center; margin-bottom: 25px;">
+                <h3 style="color: #00ff88; margin-bottom: 10px;">✅ Security Analysis Complete</h3>
+                <p style="color: #cccccc; font-size: 1.1rem;">Ticket: <strong>${result.ticket_key}</strong></p>
+            </div>
+            
+            <div class="risk-summary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px;">
+                <div class="risk-card" style="background: #2d2d30; padding: 15px; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1.5rem; margin-bottom: 8px;">🚨</div>
+                    <h5 style="color: #ff6b6b; margin-bottom: 5px;">Fraud Risk</h5>
+                    <p style="font-size: 1.2rem; font-weight: bold; color: white;">${result.fraud_risk_score}/10</p>
+                </div>
+                
+                <div class="risk-card" style="background: #2d2d30; padding: 15px; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1.5rem; margin-bottom: 8px;">🔒</div>
+                    <h5 style="color: #ffa500; margin-bottom: 5px;">Security Risk</h5>
+                    <p style="font-size: 1.2rem; font-weight: bold; color: white;">${result.security_risk_level}</p>
+                </div>
+                
+                <div class="risk-card" style="background: #2d2d30; padding: 15px; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1.5rem; margin-bottom: 8px;">📊</div>
+                    <h5 style="color: #4ecdc4; margin-bottom: 5px;">Business Impact</h5>
+                    <p style="font-size: 1.2rem; font-weight: bold; color: white;">${result.business_impact}</p>
+                </div>
+            </div>
+            
+            <div class="analysis-summary" style="background: #2d2d30; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <h4 style="color: #00ff88; margin-bottom: 15px;">📋 Analysis Summary</h4>
+                <p style="color: #cccccc; line-height: 1.6;">${result.analysis_summary}</p>
+                
+                <div style="margin-top: 15px; display: flex; gap: 20px; flex-wrap: wrap;">
+                    <div style="color: #888;">
+                        <span style="color: #00ff88;">Key Findings:</span> ${result.key_findings_count || 0}
+                    </div>
+                    <div style="color: #888;">
+                        <span style="color: #00ff88;">Recommendations:</span> ${result.recommendations_count || 0}
+                    </div>
+                    <div style="color: #888;">
+                        <span style="color: #00ff88;">Analysis Time:</span> ${new Date(result.analysis_timestamp).toLocaleString()}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="download-section" style="text-align: center;">
+                <button onclick="downloadSecurityReport('${result.download_id}')" 
+                        class="download-report-btn"
+                        style="background: linear-gradient(45deg, #00ff88, #00cc6a); color: #000; border: none; padding: 15px 30px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; margin: 10px;">
+                    📄 Download Detailed Security Report
+                </button>
+                
+                <p style="color: #888; font-size: 0.9rem; margin-top: 10px;">
+                    Professional Word document with comprehensive analysis, findings, and recommendations
+                </p>
+            </div>
+        </div>
+    `;
+    
+    addMessage(resultHtml, false);
+    
+    // Scroll to show results
+    scrollToBottom();
+}
+
+// Function to download security report
+async function downloadSecurityReport(downloadId) {
+    try {
+        const downloadUrl = `/api/download-security-report/${downloadId}`;
+        
+        // Create a temporary link and trigger download
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Show success message
+        showAlert('Report download started!', 'success');
+        
+    } catch (error) {
+        console.error('Download error:', error);
+        showAlert('Failed to download report. Please try again.', 'error');
+    }
+}
+
+// Function to add security analysis to navigation (if you have a nav menu)
+function addSecurityAnalysisToNav() {
+    // This function can be called to add the security analysis option to your navigation
+    // Adapt this based on your existing navigation structure
+    
+    const navContainer = document.querySelector('.nav-tabs') || document.querySelector('.main-nav');
+    if (navContainer) {
+        const securityTab = document.createElement('button');
+        securityTab.className = 'tab-btn';
+        securityTab.onclick = () => showSecurityAnalysis();
+        securityTab.innerHTML = '🔒 Security Analysis';
+        navContainer.appendChild(securityTab);
+    }
+}
+
+// Enhanced alert function for better user feedback
+function showAlert(message, type = 'info') {
+    const alertClass = type === 'success' ? 'alert-success' : 
+                     type === 'error' ? 'alert-error' : 'alert-info';
+    
+    const alertHtml = `
+        <div class="custom-alert ${alertClass}" style="
+            position: fixed; 
+            top: 20px; 
+            right: 20px; 
+            padding: 15px 20px; 
+            border-radius: 8px; 
+            z-index: 1000;
+            max-width: 400px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            ${type === 'success' ? 'background: #1a2d1a; border: 1px solid #00ff88; color: #00ff88;' : 
+              type === 'error' ? 'background: #2d1a1a; border: 1px solid #ff6b6b; color: #ff6b6b;' : 
+              'background: #1a1a2d; border: 1px solid #4a9eff; color: #4a9eff;'}
+        ">
+            ${message}
+        </div>
+    `;
+    
+    const alertElement = document.createElement('div');
+    alertElement.innerHTML = alertHtml;
+    document.body.appendChild(alertElement);
+    
+    // Auto remove after 3 seconds
+    setTimeout(() => {
+        if (alertElement.parentNode) {
+            alertElement.parentNode.removeChild(alertElement);
+        }
+    }, 3000);
+}
+
+// Function to get security analysis debug info
+function debugSecurityAnalysis() {
+    console.log('=== SECURITY ANALYSIS DEBUG ===');
+    console.log('Current Analysis:', currentSecurityAnalysis);
+    console.log('Available Commands:', [
+        'Do fraud & security analysis for ticket TICKET-123',
+        'Run security analysis for ticket TICKET-123', 
+        'Analyze ticket TICKET-123 for fraud'
+    ]);
+    console.log('================================');
+    
+    return {
+        currentAnalysis: currentSecurityAnalysis,
+        isConfigured: true // You can check actual config here
+    };
+}
+
+// Add to global scope for debugging
+window.debugSecurityAnalysis = debugSecurityAnalysis;
+window.showSecurityAnalysis = showSecurityAnalysis;
+
+// Auto-initialize security analysis if called directly
+if (typeof window !== 'undefined') {
+    // You can call addSecurityAnalysisToNav() here if you want to auto-add to navigation
+    console.log('Security Analysis module loaded successfully');
+}
