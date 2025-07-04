@@ -1043,78 +1043,15 @@ async function sendQuery() {
 
     console.log('Query:', query);
 
-    // Add user message with back button context
-    const userMessageHtml = `
-        <div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
-            <div style="max-width: 70%; padding: 15px 20px; border-radius: 18px; font-size: 0.95rem; line-height: 1.5; background: #000000; color: white; border-bottom-right-radius: 6px;">
-                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                    <span style="font-size: 0.8rem; opacity: 0.8;">💬 Your Question:</span>
-                </div>
-                ${query}
-            </div>
-        </div>
-    `;
-    
-    // Remove welcome message and add user message
-    const chatContainer = document.getElementById('chatContainer');
-    if (chatContainer) {
-        const welcomeMessage = chatContainer.querySelector('.welcome-message');
-        if (welcomeMessage) {
-            welcomeMessage.remove();
-        }
-        chatContainer.insertAdjacentHTML('beforeend', userMessageHtml);
-        chatContainer.scrollTop = chatContainer.scrollHeight;
+    // Check if this is a security/fraud analysis command
+    if (isSecurityAnalysisCommand(query)) {
+        console.log('Detected security analysis command');
+        await processSecurityAnalysisInJiraTab(query);
+        return;
     }
-    
-    // Clear input and reset height
-    queryInput.value = '';
-    queryInput.style.height = 'auto';
-    
-    // Show loading
-    sendButton.disabled = true;
-    const loadingMessage = addMessage('', false, true);
 
-    try {
-        const response = await fetch('/api/query', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                query: query
-            })
-        });
-
-        const result = await response.json();
-        console.log('Query result:', result);
-
-        removeLoadingMessage();
-
-        if (result.success) {
-            // Use the updated formatJiraResponse that includes back buttons
-            const jiraResponseHtml = formatJiraResponse(result.data);
-            addMessage(jiraResponseHtml, false);
-        } else {
-            const errorHtml = `
-                ${addBackButton('jira')}
-                <div class="error-message">Error: ${result.error}</div>
-                ${addBottomActionButton('jira')}
-            `;
-            addMessage(errorHtml, false);
-        }
-        
-    } catch (error) {
-        console.error('Query error:', error);
-        removeLoadingMessage();
-        const networkErrorHtml = `
-            ${addBackButton('jira')}
-            <div class="error-message">Network Error: ${error.message}</div>
-            ${addBottomActionButton('jira')}
-        `;
-        addMessage(networkErrorHtml, false);
-    } finally {
-        sendButton.disabled = false;
-    }
+    // Continue with regular Jira query processing
+    await processRegularJiraQuery(query);
 }
 
 function showAlert(message) {
@@ -5681,4 +5618,308 @@ window.showSecurityAnalysis = showSecurityAnalysis;
 if (typeof window !== 'undefined') {
     // You can call addSecurityAnalysisToNav() here if you want to auto-add to navigation
     console.log('Security Analysis module loaded successfully');
+}
+
+function isSecurityAnalysisCommand(query) {
+    const securityPatterns = [
+        /(?:do|perform|run)\s+fraud\s*[&+]\s*security\s+analysis/i,
+        /(?:do|perform|run)\s+security\s+analysis/i,
+        /(?:do|perform|run)\s+fraud\s+analysis/i,
+        /analyze\s+(?:ticket\s+)?[A-Z]+-\d+\s+(?:for\s+)?(?:fraud|security)/i,
+        /security\s+(?:review|analysis|check)\s+(?:for\s+)?(?:ticket\s+)?[A-Z]+-\d+/i,
+        /fraud\s+(?:review|analysis|check)\s+(?:for\s+)?(?:ticket\s+)?[A-Z]+-\d+/i,
+        /(?:fraud|security)\s+(?:and|&)\s+(?:security|fraud)\s+(?:analysis|review)/i
+    ];
+    
+    return securityPatterns.some(pattern => pattern.test(query));
+}
+
+// New function to handle security analysis within Jira tab
+async function processSecurityAnalysisInJiraTab(query) {
+    const queryInput = document.getElementById('queryInput');
+    const sendButton = document.getElementById('sendButton');
+    
+    // Show loading state
+    if (sendButton) {
+        sendButton.disabled = true;
+        sendButton.innerHTML = '<span>⏳</span><span>Analyzing...</span>';
+    }
+    
+    // Add user message
+    addMessage(`🔒 **Security Analysis Request:** ${query}`, true);
+    
+    // Add AI processing message
+    const processingMessage = addMessage(`
+        <div style="text-align: center; padding: 25px; background: #1a2d1a; border-radius: 10px; border: 1px solid #00ff88;">
+            <div style="font-size: 2.5rem; margin-bottom: 15px;">🤖</div>
+            <h4 style="color: #00ff88; margin-bottom: 15px;">AI Security Analysis in Progress</h4>
+            <p style="color: #cccccc; margin-bottom: 20px;">Performing comprehensive fraud and security analysis...</p>
+            
+            <div style="background: #2d2d30; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <div style="color: #888; font-size: 0.9rem; line-height: 1.6;">
+                    <div>🔍 Extracting comprehensive ticket data...</div>
+                    <div>🧠 AI analyzing content for fraud indicators...</div>
+                    <div>⚡ Assessing security vulnerabilities...</div>
+                    <div>📊 Evaluating business impact and compliance...</div>
+                    <div>📄 Generating professional Word report...</div>
+                </div>
+            </div>
+            
+            <div class="loading-spinner" style="margin: 0 auto;"></div>
+        </div>
+    `, false);
+    
+    try {
+        const response = await fetch('/api/process-security-command', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ command: query })
+        });
+
+        const result = await response.json();
+        
+        // Remove processing message
+        if (processingMessage) {
+            processingMessage.remove();
+        }
+
+        if (result.success) {
+            displaySecurityAnalysisResultsInJira(result);
+        } else {
+            addMessage(`❌ **Security Analysis Failed:** ${result.error}`, false);
+        }
+        
+    } catch (error) {
+        console.error('Security analysis error:', error);
+        if (processingMessage) {
+            processingMessage.remove();
+        }
+        addMessage(`❌ **Error:** Failed to process security analysis - ${error.message}`, false);
+    } finally {
+        // Reset button state
+        if (sendButton) {
+            sendButton.disabled = false;
+            sendButton.innerHTML = '<span>🚀</span><span>Send</span>';
+        }
+        
+        // Clear input
+        if (queryInput) {
+            queryInput.value = '';
+        }
+    }
+}
+
+// New function to handle regular Jira queries (your existing logic)
+async function processRegularJiraQuery(query) {
+    const queryInput = document.getElementById('queryInput');
+    const sendButton = document.getElementById('sendButton');
+    
+    // Add user message with back button context
+    const userMessageHtml = `
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
+            <div style="max-width: 70%; padding: 15px 20px; background: #000000; color: white; border-radius: 18px; border-bottom-right-radius: 6px;">
+                ${query}
+            </div>
+        </div>
+    `;
+    
+    const chatContainer = document.getElementById('chatContainer');
+    if (chatContainer) {
+        chatContainer.innerHTML += userMessageHtml;
+    }
+
+    // Show loading state
+    if (sendButton) {
+        sendButton.disabled = true;
+        sendButton.innerHTML = '<span>⏳</span><span>Searching...</span>';
+    }
+
+    // Add loading message
+    addMessage('', false, true);
+
+    try {
+        const response = await fetch('/api/query', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ query: query })
+        });
+
+        const result = await response.json();
+
+        // Remove loading message
+        removeLoadingMessage();
+
+        if (result.success && result.data) {
+            const responseHtml = formatJiraResponse(result.data);
+            addMessage(responseHtml, false);
+        } else {
+            const errorMessage = result.error || 'Unknown error occurred';
+            addMessage(`❌ **Error:** ${errorMessage}`, false);
+        }
+
+    } catch (error) {
+        console.error('Query error:', error);
+        removeLoadingMessage();
+        addMessage(`❌ **Error:** Failed to process query - ${error.message}`, false);
+    } finally {
+        // Reset button state
+        if (sendButton) {
+            sendButton.disabled = false;
+            sendButton.innerHTML = '<span>🚀</span><span>Send</span>';
+        }
+        
+        // Clear input
+        if (queryInput) {
+            queryInput.value = '';
+        }
+    }
+}
+
+// New function to display security analysis results in Jira tab
+function displaySecurityAnalysisResultsInJira(result) {
+    const resultHtml = `
+        <div style="background: #1a2d1a; border-radius: 12px; padding: 25px; border: 2px solid #00ff88; margin: 15px 0;">
+            <div style="text-align: center; margin-bottom: 25px;">
+                <h3 style="color: #00ff88; margin-bottom: 10px;">✅ Security Analysis Complete</h3>
+                <p style="color: #cccccc; font-size: 1.1rem;">Ticket: <strong>${result.ticket_key}</strong></p>
+            </div>
+            
+            <div class="risk-summary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px;">
+                <div class="risk-card" style="background: #2d2d30; padding: 15px; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1.5rem; margin-bottom: 8px;">🚨</div>
+                    <h5 style="color: #ff6b6b; margin-bottom: 5px;">Fraud Risk</h5>
+                    <p style="font-size: 1.2rem; font-weight: bold; color: white;">${result.fraud_risk_score}/10</p>
+                </div>
+                
+                <div class="risk-card" style="background: #2d2d30; padding: 15px; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1.5rem; margin-bottom: 8px;">🔒</div>
+                    <h5 style="color: #ffa500; margin-bottom: 5px;">Security Risk</h5>
+                    <p style="font-size: 1.2rem; font-weight: bold; color: white;">${result.security_risk_level}</p>
+                </div>
+                
+                <div class="risk-card" style="background: #2d2d30; padding: 15px; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1.5rem; margin-bottom: 8px;">📊</div>
+                    <h5 style="color: #4ecdc4; margin-bottom: 5px;">Business Impact</h5>
+                    <p style="font-size: 1.2rem; font-weight: bold; color: white;">${result.business_impact}</p>
+                </div>
+            </div>
+            
+            <div class="analysis-summary" style="background: #2d2d30; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <h4 style="color: #00ff88; margin-bottom: 15px;">📋 Analysis Summary</h4>
+                <p style="color: #cccccc; line-height: 1.6;">${result.analysis_summary}</p>
+                
+                <div style="margin-top: 15px; display: flex; gap: 20px; flex-wrap: wrap;">
+                    <div style="color: #888;">
+                        <span style="color: #00ff88;">Key Findings:</span> ${result.key_findings_count || 0}
+                    </div>
+                    <div style="color: #888;">
+                        <span style="color: #00ff88;">Recommendations:</span> ${result.recommendations_count || 0}
+                    </div>
+                    <div style="color: #888;">
+                        <span style="color: #00ff88;">Analysis Time:</span> ${new Date(result.analysis_timestamp).toLocaleString()}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="download-section" style="text-align: center;">
+                <button onclick="downloadSecurityReport('${result.download_id}')" 
+                        class="download-report-btn"
+                        style="background: linear-gradient(45deg, #00ff88, #00cc6a); color: #000; border: none; padding: 15px 30px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; margin: 10px;">
+                    📄 Download Detailed Security Report
+                </button>
+                
+                <p style="color: #888; font-size: 0.9rem; margin-top: 10px;">
+                    Professional Word document with comprehensive analysis, findings, and recommendations
+                </p>
+            </div>
+            
+            <div style="margin-top: 20px; text-align: center;">
+                <button onclick="showMoreSecurityOptions()" 
+                        style="background: #333; color: #cccccc; border: 1px solid #555; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 0.9rem;">
+                    🔍 Analyze Another Ticket
+                </button>
+            </div>
+        </div>
+    `;
+    
+    addMessage(resultHtml, false);
+    scrollToBottom();
+}
+
+// Helper function to show more security options
+function showMoreSecurityOptions() {
+    const queryInput = document.getElementById('queryInput');
+    if (queryInput) {
+        queryInput.placeholder = 'Try: "Do fraud & security analysis for ticket PROJ-456"';
+        queryInput.focus();
+    }
+}
+
+// Function to download security report (reused from previous implementation)
+async function downloadSecurityReport(downloadId) {
+    try {
+        const downloadUrl = `/api/download-security-report/${downloadId}`;
+        
+        // Create a temporary link and trigger download
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Show success message
+        showAlert('Security report download started!', 'success');
+        
+    } catch (error) {
+        console.error('Download error:', error);
+        showAlert('Failed to download report. Please try again.', 'error');
+    }
+}
+
+// Enhanced alert function for better user feedback
+function showAlert(message, type = 'info') {
+    const alertClass = type === 'success' ? 'alert-success' : 
+                     type === 'error' ? 'alert-error' : 'alert-info';
+    
+    const alertHtml = `
+        <div class="custom-alert ${alertClass}" style="
+            position: fixed; 
+            top: 20px; 
+            right: 20px; 
+            padding: 15px 20px; 
+            border-radius: 8px; 
+            z-index: 1000;
+            max-width: 400px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            ${type === 'success' ? 'background: #1a2d1a; border: 1px solid #00ff88; color: #00ff88;' : 
+              type === 'error' ? 'background: #2d1a1a; border: 1px solid #ff6b6b; color: #ff6b6b;' : 
+              'background: #1a1a2d; border: 1px solid #4a9eff; color: #4a9eff;'}
+        ">
+            ${message}
+        </div>
+    `;
+    
+    const alertElement = document.createElement('div');
+    alertElement.innerHTML = alertHtml;
+    document.body.appendChild(alertElement);
+    
+    // Auto remove after 3 seconds
+    setTimeout(() => {
+        if (alertElement.parentNode) {
+            alertElement.parentNode.removeChild(alertElement);
+        }
+    }, 3000);
+}
+
+// Helper function to scroll to bottom
+function scrollToBottom() {
+    const chatContainer = document.getElementById('chatContainer');
+    if (chatContainer) {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
 }
