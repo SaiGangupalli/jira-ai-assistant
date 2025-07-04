@@ -44,6 +44,11 @@ class Config:
     ELASTICSEARCH_PASSWORD = os.environ.get('ELASTICSEARCH_PASSWORD')
     ELASTICSEARCH_USE_SSL = os.environ.get('ELASTICSEARCH_USE_SSL', 'false').lower() == 'true'
     ELASTICSEARCH_VERIFY_SSL = os.environ.get('ELASTICSEARCH_VERIFY_SSL', 'true').lower() == 'true'
+
+    # Jenkins Configuration (add after Elasticsearch configuration)
+    JENKINS_URL = os.environ.get('JENKINS_URL')
+    JENKINS_USERNAME = os.environ.get('JENKINS_USERNAME')
+    JENKINS_TOKEN = os.environ.get('JENKINS_TOKEN')
     
     # Logging Configuration
     LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
@@ -191,11 +196,18 @@ class Config:
             'ELASTICSEARCH_HOST': cls.ELASTICSEARCH_HOST,
             'ELASTICSEARCH_USERNAME': cls.ELASTICSEARCH_USERNAME,
             'ELASTICSEARCH_PASSWORD': cls.ELASTICSEARCH_PASSWORD
-        } 
+        }
+
+        required_jenkins = {
+            'JENKINS_URL': cls.JENKINS_URL,
+            'JENKINS_USERNAME': cls.JENKINS_USERNAME,
+            'JENKINS_TOKEN': cls.JENKINS_TOKEN
+        }
         
         missing_jira = [var for var, value in required_jira.items() if not value]
         missing_oracle = [var for var, value in required_oracle.items() if not value]
         missing_elasticsearch = [var for var, value in required_elasticsearch.items() if not value]
+        missing_jenkins = [var for var, value in required_jenkins.items() if not value]
         
         if missing_jira:
             logger.error(f"Missing required Jira environment variables: {', '.join(missing_jira)}")
@@ -210,6 +222,10 @@ class Config:
         if missing_elasticsearch:
             logger.warning(f"Missing Elasticsearch environment variables: {', '.join(missing_elasticsearch)}")
             logger.warning("Log Analysis features will be disabled")
+
+        if missing_jenkins:
+            logger.warning(f"Missing Jenkins environment variables: {', '.join(missing_jenkins)}")
+            logger.warning("Jenkins Job features will be disabled")                        
             
         if not (cls.ORACLE_SERVICE or cls.ORACLE_SID):
             logger.error("Either ORACLE_SERVICE or ORACLE_SID must be provided")
@@ -254,6 +270,10 @@ class Config:
         print("ES_INDEX_PAYMENT_GATEWAY=logs-payment-gateway-*")
         print("ES_INDEX_FRAUD_DETECTION=logs-fraud-detection-*")
         print("ES_INDEX_API_GATEWAY=logs-api-gateway-*")
+        print("\n# Jenkins Configuration")
+        print("JENKINS_URL=https://your-jenkins-server.com")
+        print("JENKINS_USERNAME=your-jenkins-username")
+        print("JENKINS_TOKEN=your-jenkins-api-token")
 
     @classmethod
     def get_log_analysis_info(cls):
