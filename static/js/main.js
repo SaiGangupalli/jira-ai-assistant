@@ -4358,3 +4358,972 @@ function goBackToFraudAnalysis() {
         showTab('fraud');
     }
 }
+
+
+
+// Complete Jenkins JavaScript Functions for static/js/main.js
+// Add these functions to your existing main.js file
+
+// Global variables for Jenkins
+let currentJenkinsJob = null;
+let jenkinsJobStatus = null;
+
+// Show Jenkins job form for specific job type
+function showJenkinsJobForm(jobType) {
+    console.log('Showing Jenkins job form for:', jobType);
+    currentJenkinsJob = jobType;
+    
+    // Job type configurations
+    const jobConfigs = {
+        'fraud_story_prediction': {
+            title: 'Fraud Story Prediction Job',
+            icon: '🤖',
+            description: 'AI-powered fraud story prediction based on enterprise release data with automated email notifications',
+            parameters: [
+                {
+                    name: 'enterprise_release',
+                    label: 'Enterprise Release',
+                    type: 'text',
+                    placeholder: 'e.g., 2024.1.0, v1.2.3, Release-Q4-2024',
+                    required: true,
+                    helpText: 'Specify the enterprise release version for fraud story prediction analysis'
+                },
+                {
+                    name: 'email_id',
+                    label: 'Email ID',
+                    type: 'email',
+                    placeholder: 'your.email@company.com',
+                    required: true,
+                    helpText: 'Email address where the prediction results and report will be sent'
+                }
+            ],
+            estimatedTime: '5-10 minutes',
+            outputFormat: 'Email report with CSV attachment'
+        }
+    };
+    
+    const config = jobConfigs[jobType];
+    if (!config) {
+        showAlert('Unknown Jenkins job type selected');
+        return;
+    }
+    
+    // Build parameters form HTML
+    let parametersHtml = '';
+    config.parameters.forEach(param => {
+        parametersHtml += `
+            <div class="jenkins-form-group">
+                <label for="${param.name}">${param.label}:</label>
+                <input type="${param.type}" 
+                       id="${param.name}" 
+                       placeholder="${param.placeholder}"
+                       ${param.required ? 'required' : ''}>
+                ${param.helpText ? `<small style="color: #888; font-size: 0.8rem; margin-top: 5px; display: block;">${param.helpText}</small>` : ''}
+            </div>
+        `;
+    });
+    
+    const jenkinsFormHtml = `
+        ${addBackButton('jenkins')}
+        
+        <div class="jenkins-form">
+            <h3>
+                <span>${config.icon}</span>
+                <span>${config.title}</span>
+            </h3>
+            
+            <p style="color: #cccccc; margin-bottom: 25px; line-height: 1.4;">
+                ${config.description}
+            </p>
+            
+            <div style="margin-bottom: 25px; padding: 15px; background: #2d2d30; border-radius: 8px; border-left: 4px solid #00ff88;">
+                <strong style="color: #00ff88; display: block; margin-bottom: 8px;">📊 Job Information:</strong>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; font-size: 0.9rem;">
+                    <div><strong>Estimated Time:</strong> ${config.estimatedTime}</div>
+                    <div><strong>Output:</strong> ${config.outputFormat}</div>
+                    <div><strong>Notification:</strong> Email delivery</div>
+                </div>
+            </div>
+            
+            ${parametersHtml}
+            
+            <div class="jenkins-form-group">
+                <button type="button" class="jenkins-preview-button" onclick="previewJenkinsJob()" 
+                        style="background: #333; color: #fff; border: 1px solid #555; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; margin-bottom: 10px; margin-right: 10px;">
+                    🔍 Preview Job Configuration
+                </button>
+                <button type="button" onclick="testJenkinsConnection()" 
+                        style="background: #006600; color: #fff; border: 1px solid #00aa00; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; margin-bottom: 10px;">
+                    🔧 Test Jenkins Connection
+                </button>
+                <div id="jenkinsPreview" style="display: none; margin-top: 10px;"></div>
+            </div>
+            
+            <button class="jenkins-run-button" onclick="triggerJenkinsJob('${jobType}')">
+                <span>${config.icon}</span>
+                <span>Run ${config.title.replace(' Job', '')}</span>
+            </button>
+        </div>
+    `;
+    
+    addMessage(jenkinsFormHtml, false);
+}
+
+// Preview Jenkins job configuration
+async function previewJenkinsJob() {
+    const previewBtn = document.querySelector('.jenkins-preview-button');
+    const previewDiv = document.getElementById('jenkinsPreview');
+    
+    if (!currentJenkinsJob) {
+        showAlert('No job selected');
+        return;
+    }
+    
+    // Show loading state
+    if (previewBtn) {
+        previewBtn.disabled = true;
+        previewBtn.innerHTML = '🔄 Loading...';
+    }
+    
+    try {
+        console.log('Getting Jenkins job info for:', currentJenkinsJob);
+        
+        const response = await fetch(`/api/jenkins-job-info/${currentJenkinsJob}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        const result = await response.json();
+        console.log('Jenkins job info result:', result);
+
+        if (result.success) {
+            displayJenkinsJobPreview(result, previewDiv);
+        } else {
+            previewDiv.innerHTML = `<div style="color: #ff4444; padding: 10px; background: #2d1a1a; border-radius: 6px; border: 1px solid #ff4444;">❌ ${result.error}</div>`;
+        }
+        
+        previewDiv.style.display = 'block';
+        
+    } catch (error) {
+        console.error('Jenkins job preview error:', error);
+        previewDiv.innerHTML = `<div style="color: #ff4444; padding: 10px; background: #2d1a1a; border-radius: 6px; border: 1px solid #ff4444;">❌ Network Error: ${error.message}</div>`;
+        previewDiv.style.display = 'block';
+    } finally {
+        if (previewBtn) {
+            previewBtn.disabled = false;
+            previewBtn.innerHTML = '🔍 Preview Job Configuration';
+        }
+    }
+}
+
+// Display Jenkins job preview information
+function displayJenkinsJobPreview(result, container) {
+    const jenkinsInfo = result.jenkins_info || {};
+    const lastBuildInfo = result.last_build_info;
+    
+    let previewHtml = `
+        <div style="color: #00ff88; padding: 15px; background: #1a2d1a; border-radius: 6px; border: 1px solid #00ff88;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px;">
+                <span>✅</span>
+                <strong>Jenkins Job Information</strong>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 15px;">
+                <div style="background: #2d2d30; padding: 10px; border-radius: 6px; text-align: center;">
+                    <div style="font-size: 1.2rem; font-weight: bold; color: #00ff88;">${jenkinsInfo.buildable ? 'Ready' : 'Not Ready'}</div>
+                    <div style="font-size: 0.8rem; color: #ccc;">Job Status</div>
+                </div>
+                <div style="background: #2d2d30; padding: 10px; border-radius: 6px; text-align: center;">
+                    <div style="font-size: 1.2rem; font-weight: bold; color: #88ccff;">#${jenkinsInfo.nextBuildNumber || 'N/A'}</div>
+                    <div style="font-size: 0.8rem; color: #ccc;">Next Build</div>
+                </div>
+                <div style="background: #2d2d30; padding: 10px; border-radius: 6px; text-align: center;">
+                    <div style="font-size: 1.2rem; font-weight: bold; color: #ffaa88;">${jenkinsInfo.lastBuild || 'None'}</div>
+                    <div style="font-size: 0.8rem; color: #ccc;">Last Build</div>
+                </div>
+            </div>
+            
+            <div style="font-size: 0.9rem;">
+                <strong>Job Details:</strong>
+                <div style="margin-top: 8px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px;">
+                    <span style="background: #333; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">
+                        <strong>Display Name:</strong> ${result.display_name || 'N/A'}
+                    </span>
+                    <span style="background: #333; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">
+                        <strong>Parameters:</strong> ${result.parameters ? result.parameters.length : 0}
+                    </span>
+                    <span style="background: #333; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">
+                        <strong>Last Success:</strong> #${jenkinsInfo.lastSuccessfulBuild || 'None'}
+                    </span>
+                </div>
+            </div>
+            
+            ${lastBuildInfo ? `
+                <div style="margin-top: 15px; padding: 10px; background: #333; border-radius: 6px;">
+                    <strong style="color: #ffaa00;">Last Build Information:</strong>
+                    <div style="margin-top: 8px; font-size: 0.8rem; color: #ccc;">
+                        <div><strong>Build #${lastBuildInfo.number}:</strong> ${lastBuildInfo.result || 'Unknown'}</div>
+                        <div><strong>Duration:</strong> ${formatDuration(lastBuildInfo.duration)}</div>
+                        <div><strong>Timestamp:</strong> ${formatBuildTimestamp(lastBuildInfo.timestamp)}</div>
+                    </div>
+                </div>
+            ` : ''}
+        </div>
+    `;
+    
+    container.innerHTML = previewHtml;
+}
+
+// Test Jenkins connection
+async function testJenkinsConnection() {
+    console.log('Testing Jenkins connection...');
+    
+    try {
+        const response = await fetch('/api/jenkins-health', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        const result = await response.json();
+        console.log('Jenkins connection test result:', result);
+
+        if (result.success) {
+            addMessage(`
+                <div style="color: #00ff88; padding: 15px; background: #1a2d1a; border-radius: 6px; border: 1px solid #00ff88;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                        <span>✅</span>
+                        <strong>Jenkins Connection Successful!</strong>
+                    </div>
+                    <div style="font-size: 0.9rem;">
+                        <div><strong>Jenkins Version:</strong> ${result.jenkins_version}</div>
+                        <div><strong>Node:</strong> ${result.node_name}</div>
+                        <div><strong>Executors:</strong> ${result.num_executors}</div>
+                        <div><strong>Mode:</strong> ${result.mode}</div>
+                    </div>
+                </div>
+            `, false);
+        } else {
+            addMessage(`
+                <div style="color: #ff4444; padding: 15px; background: #2d1a1a; border-radius: 6px; border: 1px solid #ff4444;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                        <span>❌</span>
+                        <strong>Jenkins Connection Failed</strong>
+                    </div>
+                    <div style="font-size: 0.9rem; color: #ff6666;">
+                        <strong>Error:</strong> ${result.error}
+                    </div>
+                    <div style="margin-top: 10px; padding: 10px; background: #333; border-radius: 6px; font-size: 0.8rem;">
+                        <strong>Troubleshooting Tips:</strong>
+                        <ul style="margin: 5px 0 0 20px;">
+                            <li>Check Jenkins URL configuration</li>
+                            <li>Verify username and API token</li>
+                            <li>Ensure Jenkins is accessible from this server</li>
+                            <li>Check network connectivity and firewall settings</li>
+                        </ul>
+                    </div>
+                </div>
+            `, false);
+        }
+        
+    } catch (error) {
+        console.error('Jenkins connection test error:', error);
+        addMessage(`
+            <div style="color: #ff4444; padding: 15px; background: #2d1a1a; border-radius: 6px; border: 1px solid #ff4444;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                    <span>❌</span>
+                    <strong>Connection Test Failed</strong>
+                </div>
+                <div style="font-size: 0.9rem; color: #ff6666;">
+                    <strong>Network Error:</strong> ${error.message}
+                </div>
+            </div>
+        `, false);
+    }
+}
+
+// Trigger Jenkins job
+async function triggerJenkinsJob(jobType) {
+    console.log('Triggering Jenkins job:', jobType);
+    
+    const runBtn = document.querySelector('.jenkins-run-button');
+    
+    // Collect parameters from form
+    const parameters = {};
+    const parameterInputs = document.querySelectorAll('.jenkins-form input[required]');
+    
+    // Validate required parameters
+    let missingParams = [];
+    parameterInputs.forEach(input => {
+        const value = input.value.trim();
+        if (!value) {
+            missingParams.push(input.previousElementSibling.textContent.replace(':', ''));
+        } else {
+            parameters[input.id] = value;
+        }
+    });
+    
+    if (missingParams.length > 0) {
+        showAlert(`Please fill in all required fields: ${missingParams.join(', ')}`);
+        return;
+    }
+    
+    // Validate email format
+    if (parameters.email_id && !isValidEmail(parameters.email_id)) {
+        showAlert('Please enter a valid email address');
+        return;
+    }
+    
+    // Show loading state
+    if (runBtn) {
+        runBtn.disabled = true;
+        runBtn.innerHTML = '<span>🔄</span><span>Starting Job...</span>';
+    }
+    
+    // Add loading message
+    const loadingMessage = addMessage(`
+        <div style="text-align: center; padding: 20px; background: #1a2d1a; border-radius: 8px; border: 1px solid #00ff88;">
+            <div style="font-size: 2rem; margin-bottom: 10px;">🔧</div>
+            <h4 style="color: #00ff88; margin-bottom: 10px;">Jenkins Job Execution Started</h4>
+            <p style="color: #cccccc; margin-bottom: 15px;">Triggering job with validated parameters...</p>
+            <div style="background: #2d2d30; padding: 10px; border-radius: 6px; font-size: 0.8rem; color: #888;">
+                <div>• Validating job parameters</div>
+                <div>• Connecting to Jenkins server</div>
+                <div>• Triggering job execution</div>
+                <div>• Setting up email notifications</div>
+            </div>
+            <div style="margin-top: 15px;">
+                <div class="jenkins-loading-spinner" style="margin: 0 auto;"></div>
+            </div>
+        </div>
+    `, false);
+    
+    try {
+        console.log('Sending Jenkins job trigger request:', { job_type: jobType, parameters });
+        
+        const response = await fetch('/api/jenkins-trigger-job', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                job_type: jobType,
+                parameters: parameters
+            })
+        });
+
+        const result = await response.json();
+        console.log('Jenkins job trigger result:', result);
+        
+        // Remove loading message
+        if (loadingMessage) {
+            loadingMessage.remove();
+        }
+
+        if (result.success) {
+            displayJenkinsJobResults(result);
+        } else {
+            addMessage(`
+                <div class="error-message">
+                    <h4>❌ Jenkins Job Failed to Start</h4>
+                    <p><strong>Error:</strong> ${result.error}</p>
+                    ${result.validation_errors ? `
+                        <div style="margin-top: 10px;">
+                            <strong>Validation Errors:</strong>
+                            <ul style="margin: 5px 0 0 20px;">
+                                ${result.validation_errors.map(error => `<li>${error}</li>`).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                    ${result.validation_warnings ? `
+                        <div style="margin-top: 10px;">
+                            <strong>Warnings:</strong>
+                            <ul style="margin: 5px 0 0 20px; color: #ffaa00;">
+                                ${result.validation_warnings.map(warning => `<li>${warning}</li>`).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                    <div style="margin-top: 15px; padding: 10px; background: #2d2d30; border-radius: 6px; font-size: 0.8rem;">
+                        <strong>Common Issues:</strong>
+                        <ul style="margin: 8px 0 0 20px;">
+                            <li>Jenkins job configuration missing or incorrect</li>
+                            <li>Insufficient permissions to trigger job</li>
+                            <li>Jenkins server temporarily unavailable</li>
+                            <li>Parameter validation failures</li>
+                        </ul>
+                    </div>
+                    ${addBottomActionButton('jenkins')}
+                </div>
+            `, false);
+        }
+        
+    } catch (error) {
+        console.error('Jenkins job trigger error:', error);
+        
+        // Remove loading message
+        if (loadingMessage) {
+            loadingMessage.remove();
+        }
+        
+        addMessage(`
+            <div class="error-message">
+                <h4>❌ Network Error</h4>
+                <p><strong>Error:</strong> ${error.message}</p>
+                <div style="margin-top: 15px; padding: 10px; background: #2d2d30; border-radius: 6px; font-size: 0.8rem;">
+                    <strong>Possible Causes:</strong>
+                    <ul style="margin: 8px 0 0 20px;">
+                        <li>Network connectivity issues</li>
+                        <li>Jenkins server timeout</li>
+                        <li>Server configuration problems</li>
+                        <li>API endpoint not accessible</li>
+                    </ul>
+                </div>
+                ${addBottomActionButton('jenkins')}
+            </div>
+        `, false);
+    } finally {
+        if (runBtn) {
+            runBtn.disabled = false;
+            runBtn.innerHTML = `<span>🤖</span><span>Run Fraud Story Prediction</span>`;
+        }
+    }
+}
+
+// Display Jenkins job results
+function displayJenkinsJobResults(result) {
+    console.log('Displaying Jenkins job results:', result);
+    
+    try {
+        const jenkinsResultsHtml = `
+            ${addBackButton('jenkins')}
+            
+            <div class="jenkins-results">
+                <div class="jenkins-results-header">
+                    <h3>
+                        <span>🔧</span>
+                        <span>Jenkins Job: ${result.display_name}</span>
+                    </h3>
+                    <div class="jenkins-status-badge jenkins-status-${result.status}">
+                        ${result.status.toUpperCase()}
+                    </div>
+                </div>
+                
+                ${createJenkinsJobOverview(result)}
+                ${createJenkinsParametersSection(result.parameters)}
+                ${createJenkinsProgressSection(result)}
+                ${createJenkinsEmailNotificationSection(result)}
+                ${createJenkinsNextStepsSection(result)}
+            </div>
+            
+            ${addBottomActionButton('jenkins', `Job ${result.status}`)}
+        `;
+        
+        addMessage(jenkinsResultsHtml, false);
+        
+        // Start monitoring job status if needed
+        if (result.status === 'triggered') {
+            // Could implement status polling here if needed
+            console.log('Job triggered successfully, monitoring can be implemented if needed');
+        }
+        
+    } catch (error) {
+        console.error('Error displaying Jenkins results:', error);
+        addMessage(`
+            <div class="error-message">
+                <h4>❌ Display Error</h4>
+                <p><strong>Error:</strong> ${error.message}</p>
+                <div style="margin-top: 15px; padding: 10px; background: #2d2d30; border-radius: 6px; font-size: 0.8rem;">
+                    <strong>Debug Info:</strong>
+                    <pre style="color: #ccc; margin-top: 5px;">${JSON.stringify(result, null, 2).substring(0, 500)}...</pre>
+                </div>
+                ${addBottomActionButton('jenkins')}
+            </div>
+        `, false);
+    }
+}
+
+// Create Jenkins job overview section
+function createJenkinsJobOverview(result) {
+    return `
+        <div class="jenkins-section">
+            <h4>📊 Job Execution Overview</h4>
+            <div class="jenkins-grid">
+                <div class="jenkins-metric">
+                    <div class="jenkins-metric-value" style="color: #00ff88;">${result.job_name}</div>
+                    <div class="jenkins-metric-label">Job Name</div>
+                </div>
+                <div class="jenkins-metric">
+                    <div class="jenkins-metric-value" style="color: #ffaa00;">${result.estimated_runtime}</div>
+                    <div class="jenkins-metric-label">Estimated Runtime</div>
+                </div>
+                <div class="jenkins-metric">
+                    <div class="jenkins-metric-value" style="color: #88ccff;">${formatJobTimestamp(result.triggered_at)}</div>
+                    <div class="jenkins-metric-label">Started At</div>
+                </div>
+                <div class="jenkins-metric">
+                    <div class="jenkins-metric-value" style="color: #ff88cc;">Active</div>
+                    <div class="jenkins-metric-label">Status</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Create Jenkins parameters section
+function createJenkinsParametersSection(parameters) {
+    if (!parameters || Object.keys(parameters).length === 0) {
+        return `
+            <div class="jenkins-section">
+                <h4>⚙️ Job Parameters</h4>
+                <div style="text-align: center; color: #888; padding: 20px;">
+                    No parameters configured for this job
+                </div>
+            </div>
+        `;
+    }
+    
+    // Filter out internal parameters for display
+    const displayParams = Object.entries(parameters).filter(([key, value]) => 
+        !key.startsWith('triggered_') && key !== 'triggered_by'
+    );
+    
+    return `
+        <div class="jenkins-section">
+            <h4>⚙️ Job Parameters</h4>
+            <div class="jenkins-parameters">
+                ${displayParams.map(([key, value]) => `
+                    <div class="jenkins-parameter-item">
+                        <span class="jenkins-parameter-name">${formatParameterName(key)}</span>
+                        <span class="jenkins-parameter-value">${maskSensitiveValue(key, value)}</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+}
+
+// Create Jenkins progress section
+function createJenkinsProgressSection(result) {
+    return `
+        <div class="jenkins-section">
+            <h4>⏱️ Execution Progress</h4>
+            <div class="jenkins-progress">
+                <div style="color: #00ff88; font-weight: 600; margin-bottom: 10px;">
+                    Job execution in progress...
+                </div>
+                <div class="jenkins-progress-bar">
+                    <div class="jenkins-progress-fill" style="width: 25%;"></div>
+                </div>
+                <div style="font-size: 0.8rem; color: #ccc; margin-top: 10px;">
+                    Job has been queued and will begin execution shortly. Progress updates will be available in Jenkins console.
+                </div>
+                ${result.queue_location ? `
+                    <div style="margin-top: 10px; font-size: 0.8rem;">
+                        <strong style="color: #88ccff;">Queue Location:</strong> 
+                        <span style="font-family: monospace; color: #ccc;">${result.queue_location}</span>
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+}
+
+// Create Jenkins email notification section
+function createJenkinsEmailNotificationSection(result) {
+    const emailAddress = result.parameters?.email_id || 'specified email address';
+    
+    return `
+        <div class="jenkins-section">
+            <h4>📧 Email Notification Setup</h4>
+            <div class="jenkins-email-notification">
+                <h5>
+                    <span>📬</span>
+                    <span>Results will be delivered to: ${emailAddress}</span>
+                </h5>
+                <div style="font-size: 0.9rem; color: #cccccc; line-height: 1.4;">
+                    <p style="margin: 8px 0;">The fraud story prediction report will include:</p>
+                    <ul style="margin: 8px 0 8px 20px;">
+                        <li>Comprehensive fraud analysis results</li>
+                        <li>Prediction confidence scores and metrics</li>
+                        <li>Detailed CSV data export with findings</li>
+                        <li>Executive summary and recommendations</li>
+                        <li>Trend analysis and risk indicators</li>
+                    </ul>
+                </div>
+                <div style="background: #333; padding: 8px 12px; border-radius: 6px; margin-top: 10px; font-size: 0.8rem; color: #00ff88;">
+                    <strong>Note:</strong> Email delivery typically occurs within 2-3 minutes of job completion
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Create Jenkins next steps section
+function createJenkinsNextStepsSection(result) {
+    return `
+        <div class="jenkins-section">
+            <h4>🎯 Next Steps</h4>
+            <div style="background: #2d2d30; border-radius: 8px; padding: 15px;">
+                ${result.next_steps && result.next_steps.length > 0 ? `
+                    <ol style="margin: 0; padding-left: 20px; color: #ffffff;">
+                        ${result.next_steps.map(step => `
+                            <li style="margin: 8px 0; line-height: 1.4;">${step}</li>
+                        `).join('')}
+                    </ol>
+                ` : `
+                    <div style="color: #cccccc;">
+                        <p>Job execution details:</p>
+                        <ul style="margin: 8px 0 0 20px;">
+                            <li>Monitor progress in Jenkins console</li>
+                            <li>Wait for email notification upon completion</li>
+                            <li>Review results and take appropriate actions</li>
+                        </ul>
+                    </div>
+                `}
+                
+                <div style="margin-top: 15px; padding: 10px; background: #1a2d1a; border-radius: 6px; border-left: 4px solid #00ff88;">
+                    <strong style="color: #00ff88;">Pro Tip:</strong>
+                    <span style="color: #cccccc; font-size: 0.9rem;">
+                        You can continue using the application while the job runs in the background. 
+                        The email notification will confirm completion and provide all results.
+                    </span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Helper functions for Jenkins
+
+function formatParameterName(paramName) {
+    return paramName
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+}
+
+function maskSensitiveValue(key, value) {
+    // Don't mask email addresses, but could mask other sensitive data if needed
+    if (key.toLowerCase().includes('password') || key.toLowerCase().includes('token')) {
+        return '*'.repeat(8);
+    }
+    return value;
+}
+
+function formatDuration(durationMs) {
+    if (!durationMs || durationMs === 0) return 'N/A';
+    
+    const seconds = Math.floor(durationMs / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    
+    if (minutes > 0) {
+        return `${minutes}m ${remainingSeconds}s`;
+    } else {
+        return `${remainingSeconds}s`;
+    }
+}
+
+function formatBuildTimestamp(timestamp) {
+    if (!timestamp) return 'Unknown';
+    
+    try {
+        const date = new Date(timestamp);
+        return date.toLocaleString('en-US', {
+            month: 'short',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    } catch {
+        return 'Invalid date';
+    }
+}
+
+function formatJobTimestamp(timestamp) {
+    if (!timestamp) return 'Unknown';
+    
+    try {
+        const date = new Date(timestamp);
+        return date.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+    } catch {
+        return 'Invalid time';
+    }
+}
+
+function isValidEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+}
+
+// Update the goBackToForm function to handle Jenkins context
+function goBackToJenkinsJobs() {
+    const chatContainer = document.getElementById('chatContainer');
+    if (chatContainer) {
+        const jenkinsJobsContent = `
+            <div class="welcome-message">
+                <h2>🔧 Jenkins Job Management</h2>
+                <p>Choose the Jenkins job you want to execute:</p>
+                
+                <div class="jenkins-jobs-options">
+                    <div class="jenkins-job-option" onclick="showJenkinsJobForm('fraud_story_prediction')">
+                        <div class="jenkins-job-icon">🤖</div>
+                        <h4>Fraud Story Prediction</h4>
+                        <p>AI-powered fraud story prediction based on enterprise release data with automated email notifications</p>
+                        <div style="margin-top: 10px; font-size: 0.7rem; color: #888;">
+                            <strong>Parameters:</strong> Enterprise Release, Email ID
+                        </div>
+                        <div style="margin-top: 5px; font-size: 0.7rem; color: #888;">
+                            <strong>Runtime:</strong> 5-10 minutes • <strong>Output:</strong> Email report
+                        </div>
+                    </div>
+                    
+                    <!-- Placeholder for future Jenkins jobs -->
+                    <div class="jenkins-job-option disabled" style="opacity: 0.5; cursor: not-allowed;" title="Coming Soon">
+                        <div class="jenkins-job-icon">📊</div>
+                        <h4>Performance Analysis</h4>
+                        <p>Automated performance testing and analysis with detailed reporting</p>
+                        <div style="margin-top: 10px; font-size: 0.7rem; color: #888;">
+                            <strong>Status:</strong> Coming Soon
+                        </div>
+                    </div>
+                    
+                    <div class="jenkins-job-option disabled" style="opacity: 0.5; cursor: not-allowed;" title="Coming Soon">
+                        <div class="jenkins-job-icon">🔄</div>
+                        <h4>Deployment Pipeline</h4>
+                        <p>Automated deployment with rollback capabilities and monitoring</p>
+                        <div style="margin-top: 10px; font-size: 0.7rem; color: #888;">
+                            <strong>Status:</strong> Coming Soon
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Jenkins Connection Status -->
+                <div style="margin-top: 30px; padding: 20px; background: linear-gradient(135deg, #1a2d1a, #2d3a2d); border: 1px solid #00ff88; border-radius: 12px;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                        <span style="font-size: 1.5rem;">🔧</span>
+                        <h4 style="color: #00ff88; margin: 0;">Jenkins Integration</h4>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; font-size: 0.8rem;">
+                        <div style="padding: 8px; background: rgba(0,255,136,0.1); border-radius: 6px;">
+                            <strong style="color: #00ff88;">🎯 Automated Execution</strong><br>
+                            <span style="color: #ccc;">Parameterized job triggering with validation</span>
+                        </div>
+                        <div style="padding: 8px; background: rgba(0,255,136,0.1); border-radius: 6px;">
+                            <strong style="color: #00ff88;">📧 Email Notifications</strong><br>
+                            <span style="color: #ccc;">Results delivered directly to your inbox</span>
+                        </div>
+                        <div style="padding: 8px; background: rgba(0,255,136,0.1); border-radius: 6px;">
+                            <strong style="color: #00ff88;">⏱️ Real-time Status</strong><br>
+                            <span style="color: #ccc;">Live job monitoring and progress tracking</span>
+                        </div>
+                        <div style="padding: 8px; background: rgba(0,255,136,0.1); border-radius: 6px;">
+                            <strong style="color: #00ff88;">🔒 Secure Access</strong><br>
+                            <span style="color: #ccc;">Token-based authentication and authorization</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        chatContainer.innerHTML = jenkinsJobsContent;
+        showTab('jenkins');
+    }
+}
+
+// Update the main goBackToForm function to handle Jenkins context
+// Find the existing goBackToForm function and update it to include Jenkins case:
+
+// Update the existing goBackToForm function to include jenkins case
+/*
+function goBackToForm(context) {
+    // Clear the chat container and restore the welcome message
+    const chatContainer = document.getElementById('chatContainer');
+    if (chatContainer) {
+        // Create the welcome message content based on context
+        let welcomeContent = '';
+        
+        switch(context) {
+            case 'jenkins':
+                goBackToJenkinsJobs();
+                return;
+            case 'fraud':
+                goBackToFraudAnalysis();
+                return;
+            case 'logs':
+                goBackToLogAnalysis();
+                return;
+            // ... other cases for validation, security, jira
+            default:
+                // Default welcome content
+                break;
+        }
+        
+        // Continue with existing logic for other contexts...
+    }
+}
+*/
+
+// Jenkins debugging functions
+async function debugJenkinsConnection() {
+    console.log('=== JENKINS DEBUG START ===');
+    
+    try {
+        const healthResponse = await fetch('/api/jenkins-health');
+        const healthResult = await healthResponse.json();
+        console.log('Jenkins Health Check:', healthResult);
+        
+        const jobsResponse = await fetch('/api/jenkins-jobs');
+        const jobsResult = await jobsResponse.json();
+        console.log('Available Jobs:', jobsResult);
+        
+        if (currentJenkinsJob) {
+            const jobInfoResponse = await fetch(`/api/jenkins-job-info/${currentJenkinsJob}`);
+            const jobInfoResult = await jobInfoResponse.json();
+            console.log('Current Job Info:', jobInfoResult);
+        }
+        
+        console.log('=== JENKINS DEBUG END ===');
+        return {
+            health: healthResult,
+            jobs: jobsResult,
+            currentJobInfo: currentJenkinsJob ? jobInfoResult : null
+        };
+        
+    } catch (error) {
+        console.error('Jenkins debug failed:', error);
+        return { error: error.message };
+    }
+}
+
+// Global function for easy testing
+window.debugJenkinsConnection = debugJenkinsConnection;
+
+// Test Jenkins job trigger with mock data
+async function testJenkinsJobTrigger() {
+    console.log('Testing Jenkins job trigger with mock data...');
+    
+    try {
+        const result = await fetch('/api/jenkins-trigger-job', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                job_type: 'fraud_story_prediction',
+                parameters: {
+                    enterprise_release: 'test-release-1.0.0',
+                    email_id: 'test@company.com'
+                }
+            })
+        });
+        
+        const data = await result.json();
+        console.log('Test trigger result:', data);
+        return data;
+        
+    } catch (error) {
+        console.error('Test trigger failed:', error);
+        return { error: error.message };
+    }
+}
+
+// Global function for testing
+window.testJenkinsJobTrigger = testJenkinsJobTrigger;
+
+// Add Jenkins-specific console helpers
+console.log('🔧 Jenkins Debug Tools Available:');
+console.log('- debugJenkinsConnection() - Test Jenkins connectivity and get job info');
+console.log('- testJenkinsJobTrigger() - Test job trigger with mock data');
+console.log('- currentJenkinsJob - Current selected job type');
+
+// Add real-time job status monitoring (optional feature)
+let jobMonitoringInterval = null;
+
+function startJobMonitoring(jobType, buildNumber) {
+    console.log(`Starting job monitoring for ${jobType} build ${buildNumber}`);
+    
+    // Clear any existing monitoring
+    if (jobMonitoringInterval) {
+        clearInterval(jobMonitoringInterval);
+    }
+    
+    jobMonitoringInterval = setInterval(async () => {
+        try {
+            const response = await fetch(`/api/jenkins-build-status/${jobType}/${buildNumber}`);
+            const result = await response.json();
+            
+            if (result.success) {
+                console.log('Job status update:', result);
+                
+                // Update UI if job is complete
+                if (result.status === 'completed') {
+                    console.log('Job completed:', result.result);
+                    clearInterval(jobMonitoringInterval);
+                    jobMonitoringInterval = null;
+                    
+                    // Could show completion notification here
+                    if (result.result === 'SUCCESS') {
+                        console.log('✅ Job completed successfully');
+                    } else {
+                        console.log('❌ Job failed:', result.result);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Job monitoring error:', error);
+        }
+    }, 10000); // Check every 10 seconds
+}
+
+function stopJobMonitoring() {
+    if (jobMonitoringInterval) {
+        clearInterval(jobMonitoringInterval);
+        jobMonitoringInterval = null;
+        console.log('Job monitoring stopped');
+    }
+}
+
+// Cleanup monitoring on page unload
+window.addEventListener('beforeunload', stopJobMonitoring);
+
+// Jenkins job status polling function (can be called manually)
+async function checkJenkinsJobStatus(jobType, buildNumber) {
+    try {
+        const response = await fetch(`/api/jenkins-build-status/${jobType}/${buildNumber}`);
+        const result = await response.json();
+        console.log('Job status:', result);
+        return result;
+    } catch (error) {
+        console.error('Status check failed:', error);
+        return { error: error.message };
+    }
+}
+
+// Global function for manual status checking
+window.checkJenkinsJobStatus = checkJenkinsJobStatus;
+
+// Export functions for testing (if needed)
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        showJenkinsJobForm,
+        previewJenkinsJob,
+        testJenkinsConnection,
+        triggerJenkinsJob,
+        displayJenkinsJobResults,
+        formatParameterName,
+        formatDuration,
+        formatBuildTimestamp,
+        formatJobTimestamp,
+        isValidEmail,
+        debugJenkinsConnection,
+        testJenkinsJobTrigger
+    };
+}
