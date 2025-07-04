@@ -282,6 +282,132 @@ def create_app():
                 'success': False,
                 'error': str(e)
             }), 500
+
+    # Add this new API endpoint to your app.py
+@app.route('/api/process-security-command', methods=['POST'])
+def process_security_command():
+    """Process natural language security analysis commands"""
+    if not jira_service:
+        return jsonify({
+            'success': False,
+            'error': 'Jira service not available. Please check Jira and OpenAI configuration.'
+        }), 503
+    
+    try:
+        data = request.get_json()
+        
+        if not data or not data.get('command'):
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: command'
+            }), 400
+        
+        user_command = data.get('command', '').strip()
+        
+        if not user_command:
+            return jsonify({
+                'success': False,
+                'error': 'Command cannot be empty'
+            }), 400
+        
+        # Process the security analysis command
+        result = jira_service.process_security_analysis_command(user_command)
+        
+        if result['success']:
+            # Store file info for download
+            file_id = result['download_id']
+            download_files[file_id] = {
+                'path': result['document_path'],
+                'filename': result['filename'],
+                'created': datetime.now(),
+                'ticket_key': result['ticket_key']
+            }
+            
+            # Clean up old files (older than 1 hour)
+            cleanup_old_downloads()
+            
+            # Remove sensitive file path from response
+            response_data = {k: v for k, v in result.items() if k != 'document_path'}
+            response_data['download_url'] = f'/api/download-security-report/{file_id}'
+            
+            return jsonify(response_data)
+        else:
+            return jsonify(result), 400
+        
+    except Exception as e:
+        logger.error(f"Error processing security command: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to process command: {str(e)}'
+        }), 500
+
+@app.route('/api/download-security-report/<file_id>')
+def download_security_report(file_id):
+    """Download generated security analysis report"""
+    try:
+        if file_id not in download_files:
+            return jsonify({
+                'error': 'File not found or expired'
+            }), 404
+        
+        file_info = download_files[file_id]
+        file_path = file_info['path']
+        
+        # Check if file still exists
+        if not os.path.exists(file_path):
+            # Clean up the entry
+            del download_files[file_id]
+            return jsonify({
+                'error': 'File not found on server'
+            }), 404
+        
+        # Send the file
+        response = send_file(
+            file_path,
+            as_attachment=True,
+            download_name=file_info['filename'],
+            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+        
+        # Schedule file cleanup after download
+        # Note: In production, you might want to use a background task for this
+        try:
+            os.unlink(file_path)
+            del download_files[file_id]
+        except:
+            pass  # Ignore cleanup errors
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error downloading file {file_id}: {e}")
+        return jsonify({
+            'error': 'Download failed'
+        }), 500
+
+def cleanup_old_downloads():
+    """Clean up download files older than 1 hour"""
+    try:
+        current_time = datetime.now()
+        expired_files = []
+        
+        for file_id, file_info in download_files.items():
+            if current_time - file_info['created'] > timedelta(hours=1):
+                expired_files.append(file_id)
+        
+        for file_id in expired_files:
+            try:
+                file_path = download_files[file_id]['path']
+                if os.path.exists(file_path):
+                    os.unlink(file_path)
+                del download_files[file_id]
+                logger.info(f"Cleaned up expired download file: {file_id}")
+            except Exception as e:
+                logger.error(f"Error cleaning up file {file_id}: {e}")
+                
+    except Exception as e:
+        logger.error(f"Error in cleanup_old_downloads: {e}")
+
     
     @app.route('/api/health', methods=['GET'])
 def health_check():
