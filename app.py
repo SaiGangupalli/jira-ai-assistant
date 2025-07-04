@@ -21,6 +21,18 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
+# Add these imports to the top of app.py
+from services.jenkins_service import JenkinsService
+
+# Initialize Jenkins service after other services
+jenkins_service = None
+try:
+    from services.jenkins_service import JenkinsService
+    jenkins_service = JenkinsService()
+    logger.info("Jenkins service initialized successfully")
+except Exception as e:
+    logger.warning(f"Jenkins service initialization failed: {e}")
+    jenkins_service = None
 logger = logging.getLogger(__name__)
 
 # Custom JSON Encoder
