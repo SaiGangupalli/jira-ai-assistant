@@ -5923,3 +5923,803 @@ function scrollToBottom() {
         chatContainer.scrollTop = chatContainer.scrollHeight;
     }
 }
+
+
+// Enhanced frontend JavaScript for JWT validation display
+// Add to static/js/main.js
+
+// Enhanced fraud analysis function with JWT validation
+async function performFraudAnalysis() {
+    console.log('Starting enhanced fraud analysis with JWT validation...');
+    
+    const sessionIdInput = document.getElementById('sessionId');
+    const fraudTypeSelect = document.getElementById('fraudType');
+    const analyzeBtn = document.querySelector('.analyze-button');
+    
+    if (!sessionIdInput || !fraudTypeSelect) {
+        console.error('Required inputs not found');
+        return;
+    }
+    
+    const sessionId = sessionIdInput.value.trim();
+    const fraudType = fraudTypeSelect.value;
+    
+    if (!sessionId || !fraudType) {
+        showAlert('Please enter session ID and select fraud type');
+        return;
+    }
+    
+    // Show loading state
+    if (analyzeBtn) {
+        analyzeBtn.disabled = true;
+        analyzeBtn.innerHTML = '🔄 Analyzing with JWT Validation...';
+    }
+    
+    try {
+        console.log('Sending enhanced fraud analysis request:', sessionId, fraudType);
+        
+        const response = await fetch('/api/fraud-analysis', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                session_id: sessionId,
+                fraud_type: fraudType,
+                include_jwt_validation: true
+            })
+        });
+
+        const result = await response.json();
+        console.log('Enhanced fraud analysis result:', result);
+
+        if (result.success) {
+            displayEnhancedFraudResults(result);
+        } else {
+            addMessage(`<div class="error-message">Error: ${result.error}</div>`, false);
+        }
+        
+    } catch (error) {
+        console.error('Enhanced fraud analysis error:', error);
+        addMessage(`<div class="error-message">Network Error: ${error.message}</div>`, false);
+    } finally {
+        if (analyzeBtn) {
+            analyzeBtn.disabled = false;
+            analyzeBtn.innerHTML = '🚨 Analyze Fraud Patterns';
+        }
+    }
+}
+
+function displayEnhancedFraudResults(result) {
+    console.log('Displaying enhanced fraud results with JWT validation:', result);
+    
+    const analysis = result.analysis || {};
+    const jwtValidation = result.jwt_validation || {};
+    const aiInsights = analysis.ai_insights || {};
+    
+    // Create comprehensive results display
+    const enhancedResultsHtml = `
+        ${addBackButton('fraud-analysis')}
+        
+        <!-- Session Overview -->
+        <div class="fraud-results-container">
+            <div class="fraud-header">
+                <h3 style="display: flex; align-items: center; gap: 10px;">
+                    <span>🚨</span>
+                    <span>Enhanced Fraud Analysis: ${result.session_id}</span>
+                </h3>
+                <div class="analysis-badges">
+                    <span class="badge badge-${result.fraud_type}">${result.fraud_type.replace('_', ' ').toUpperCase()}</span>
+                    <span class="badge badge-jwt">JWT VALIDATED</span>
+                    <span class="badge badge-score">Score: ${aiInsights.session_score || 0}/100</span>
+                </div>
+            </div>
+            
+            <!-- JWT Validation Summary -->
+            ${generateJWTValidationSummary(jwtValidation)}
+            
+            <!-- JWT Tokens Table -->
+            ${generateJWTTokensTable(jwtValidation)}
+            
+            <!-- Identity Consistency Table -->
+            ${generateIdentityConsistencyTable(jwtValidation)}
+            
+            <!-- Header Analysis Table -->
+            ${generateHeaderAnalysisTable(jwtValidation)}
+            
+            <!-- AI Insights Enhanced -->
+            ${generateEnhancedAIInsights(aiInsights, jwtValidation)}
+            
+            <!-- Fraud Monitoring Analysis -->
+            ${generateFraudMonitoringTable(analysis)}
+            
+            <!-- Security Recommendations -->
+            ${generateSecurityRecommendations(aiInsights, jwtValidation)}
+        </div>
+        
+        ${addBottomActionButton('fraud-analysis')}
+    `;
+    
+    addMessage(enhancedResultsHtml, false);
+}
+
+function generateJWTValidationSummary(jwtValidation) {
+    const summary = jwtValidation.validation_summary || {};
+    const riskLevel = summary.risk_level || 'UNKNOWN';
+    const overallScore = summary.overall_score || 0;
+    
+    const getRiskColor = (level) => {
+        switch(level) {
+            case 'LOW': return '#00ff88';
+            case 'MEDIUM': return '#ffaa00';
+            case 'HIGH': return '#ff4444';
+            default: return '#888888';
+        }
+    };
+    
+    const getRiskIcon = (level) => {
+        switch(level) {
+            case 'LOW': return '✅';
+            case 'MEDIUM': return '⚠️';
+            case 'HIGH': return '🚨';
+            default: return '❓';
+        }
+    };
+    
+    return `
+        <div class="jwt-validation-summary" style="margin-bottom: 20px; padding: 20px; background: linear-gradient(135deg, #1a1a2e, #16213e); border-radius: 12px; border-left: 4px solid ${getRiskColor(riskLevel)};">
+            <h4 style="color: #ffffff; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                <span>🔐</span>
+                <span>JWT Identity Validation Summary</span>
+            </h4>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                <div class="summary-metric">
+                    <div style="color: #cccccc; font-size: 0.9rem;">Total JWT Tokens</div>
+                    <div style="color: #ffffff; font-size: 1.4rem; font-weight: bold;">${summary.total_tokens_found || 0}</div>
+                </div>
+                
+                <div class="summary-metric">
+                    <div style="color: #cccccc; font-size: 0.9rem;">Successfully Decoded</div>
+                    <div style="color: #00ff88; font-size: 1.4rem; font-weight: bold;">${summary.tokens_successfully_decoded || 0}</div>
+                </div>
+                
+                <div class="summary-metric">
+                    <div style="color: #cccccc; font-size: 0.9rem;">Validation Errors</div>
+                    <div style="color: #ff4444; font-size: 1.4rem; font-weight: bold;">${summary.tokens_with_errors || 0}</div>
+                </div>
+                
+                <div class="summary-metric">
+                    <div style="color: #cccccc; font-size: 0.9rem;">Identity Consistency</div>
+                    <div style="color: #00ff88; font-size: 1.4rem; font-weight: bold;">${Math.round(summary.identity_consistency_score || 100)}%</div>
+                </div>
+                
+                <div class="summary-metric">
+                    <div style="color: #cccccc; font-size: 0.9rem;">Risk Level</div>
+                    <div style="color: ${getRiskColor(riskLevel)}; font-size: 1.4rem; font-weight: bold; display: flex; align-items: center; gap: 5px;">
+                        <span>${getRiskIcon(riskLevel)}</span>
+                        <span>${riskLevel}</span>
+                    </div>
+                </div>
+                
+                <div class="summary-metric">
+                    <div style="color: #cccccc; font-size: 0.9rem;">Validation Score</div>
+                    <div style="color: ${overallScore >= 80 ? '#00ff88' : overallScore >= 60 ? '#ffaa00' : '#ff4444'}; font-size: 1.4rem; font-weight: bold;">${overallScore}/100</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function generateJWTTokensTable(jwtValidation) {
+    const tokens = jwtValidation.jwt_tokens_found || [];
+    const validations = jwtValidation.identity_consistency_checks || [];
+    
+    if (tokens.length === 0) {
+        return `
+            <div style="margin-bottom: 20px; padding: 15px; background: #2a2a2a; border-radius: 8px; border-left: 4px solid #ffaa00;">
+                <h4 style="color: #ffffff; margin-bottom: 10px;">🔍 JWT Tokens Analysis</h4>
+                <p style="color: #cccccc; margin: 0;">No JWT tokens found in session logs for analysis.</p>
+            </div>
+        `;
+    }
+    
+    const tokenRows = tokens.map((token, index) => {
+        const validation = validations.find(v => v.token_id && v.token_id.includes(token.log_id)) || {};
+        const status = validation.validation_status || 'UNKNOWN';
+        const identityData = validation.identity_data || {};
+        
+        const getStatusColor = (status) => {
+            switch(status) {
+                case 'DECODED': return '#00ff88';
+                case 'INVALID_STRUCTURE': return '#ff4444';
+                case 'ERROR': return '#ff4444';
+                default: return '#ffaa00';
+            }
+        };
+        
+        const getStatusIcon = (status) => {
+            switch(status) {
+                case 'DECODED': return '✅';
+                case 'INVALID_STRUCTURE': return '❌';
+                case 'ERROR': return '⚠️';
+                default: return '❓';
+            }
+        };
+        
+        // Extract identity values
+        const userId = identityData.user_id?.value || 'N/A';
+        const accountNumber = identityData.account_number?.value || 'N/A';
+        const mdn = identityData.mdn?.value || 'N/A';
+        const email = identityData.email?.value || 'N/A';
+        
+        return `
+            <tr>
+                <td>${index + 1}</td>
+                <td><code style="font-size: 0.8rem;">${token.log_id || 'Unknown'}</code></td>
+                <td><code style="font-size: 0.8rem;">${token.api_endpoint || 'N/A'}</code></td>
+                <td>${token.source_field || 'headers'}</td>
+                <td>
+                    <span style="color: ${getStatusColor(status)}; display: flex; align-items: center; gap: 5px;">
+                        <span>${getStatusIcon(status)}</span>
+                        <span>${status}</span>
+                    </span>
+                </td>
+                <td><code style="font-size: 0.8rem;">${userId}</code></td>
+                <td><code style="font-size: 0.8rem;">${accountNumber}</code></td>
+                <td><code style="font-size: 0.8rem;">${mdn}</code></td>
+                <td><code style="font-size: 0.8rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis;">${email}</code></td>
+                <td><small style="color: #cccccc;">${token.timestamp ? new Date(token.timestamp).toLocaleTimeString() : 'N/A'}</small></td>
+            </tr>
+        `;
+    }).join('');
+    
+    return `
+        <div style="margin-bottom: 25px;">
+            <h4 style="color: #ffffff; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                <span>🎫</span>
+                <span>JWT Tokens Detailed Analysis</span>
+            </h4>
+            
+            <div style="overflow-x: auto; background: #1a1a1a; border-radius: 8px; border: 1px solid #333;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="background: #2a2a2a; border-bottom: 2px solid #444;">
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">#</th>
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">Log ID</th>
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">API Endpoint</th>
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">Source</th>
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">Status</th>
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">User ID</th>
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">Account #</th>
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">MDN</th>
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">Email</th>
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tokenRows}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+}
+
+function generateIdentityConsistencyTable(jwtValidation) {
+    const consistencyChecks = (jwtValidation.identity_consistency_checks || [])
+        .filter(check => check.check_type === 'IDENTITY_CONSISTENT' || check.check_type === 'IDENTITY_INCONSISTENCY');
+    
+    if (consistencyChecks.length === 0) {
+        return `
+            <div style="margin-bottom: 20px; padding: 15px; background: #2a2a2a; border-radius: 8px; border-left: 4px solid #888;">
+                <h4 style="color: #ffffff; margin-bottom: 10px;">🔄 Identity Consistency Analysis</h4>
+                <p style="color: #cccccc; margin: 0;">No identity consistency data available for analysis.</p>
+            </div>
+        `;
+    }
+    
+    const consistencyRows = consistencyChecks.map(check => {
+        const status = check.status || 'UNKNOWN';
+        const severity = check.severity || 'INFO';
+        const details = check.details || {};
+        
+        const getStatusColor = (status) => {
+            switch(status) {
+                case 'PASS': return '#00ff88';
+                case 'RISK': return '#ff4444';
+                default: return '#ffaa00';
+            }
+        };
+        
+        const getStatusIcon = (status) => {
+            switch(status) {
+                case 'PASS': return '✅';
+                case 'RISK': return '🚨';
+                default: return '⚠️';
+            }
+        };
+        
+        const getSeverityColor = (severity) => {
+            switch(severity) {
+                case 'INFO': return '#00aaff';
+                case 'MEDIUM': return '#ffaa00';
+                case 'HIGH': return '#ff4444';
+                default: return '#888888';
+            }
+        };
+        
+        return `
+            <tr>
+                <td style="text-transform: capitalize;">${check.identity_field?.replace('_', ' ') || 'Unknown'}</td>
+                <td>
+                    <span style="color: ${getStatusColor(status)}; display: flex; align-items: center; gap: 5px;">
+                        <span>${getStatusIcon(status)}</span>
+                        <span>${status}</span>
+                    </span>
+                </td>
+                <td>
+                    <span style="color: ${getSeverityColor(severity)}; font-weight: 600;">${severity}</span>
+                </td>
+                <td style="max-width: 300px;">
+                    <div style="color: #cccccc; font-size: 0.9rem;">${check.description || 'No description'}</div>
+                    ${details.value ? `<div style="color: #00ff88; font-size: 0.8rem; margin-top: 2px;"><code>${details.value}</code></div>` : ''}
+                </td>
+                <td>
+                    ${details.token_count ? `<span style="color: #ffaa00;">${details.token_count} tokens</span>` : 'N/A'}
+                </td>
+                <td>
+                    ${details.unique_values && details.unique_values.length > 1 ? 
+                        `<div style="color: #ff4444; font-size: 0.8rem;">${details.unique_values.join(', ')}</div>` : 
+                        '<span style="color: #00ff88;">Consistent</span>'
+                    }
+                </td>
+            </tr>
+        `;
+    }).join('');
+    
+    return `
+        <div style="margin-bottom: 25px;">
+            <h4 style="color: #ffffff; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                <span>🔄</span>
+                <span>Identity Consistency Analysis</span>
+            </h4>
+            
+            <div style="overflow-x: auto; background: #1a1a1a; border-radius: 8px; border: 1px solid #333;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="background: #2a2a2a; border-bottom: 2px solid #444;">
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">Identity Field</th>
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">Status</th>
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">Severity</th>
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">Description</th>
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">Token Count</th>
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">Values Found</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${consistencyRows}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+}
+
+function generateHeaderAnalysisTable(jwtValidation) {
+    const headerAnalysis = jwtValidation.header_analysis || [];
+    
+    if (headerAnalysis.length === 0) {
+        return `
+            <div style="margin-bottom: 20px; padding: 15px; background: #2a2a2a; border-radius: 8px; border-left: 4px solid #888;">
+                <h4 style="color: #ffffff; margin-bottom: 10px;">📋 Header Analysis</h4>
+                <p style="color: #cccccc; margin: 0;">No outgoing headers found for analysis.</p>
+            </div>
+        `;
+    }
+    
+    const headerRows = headerAnalysis.map(analysis => {
+        const authMethods = analysis.auth_methods || [];
+        const securityHeaders = analysis.security_headers || [];
+        const suspiciousPatterns = analysis.suspicious_patterns || [];
+        
+        return `
+            <tr>
+                <td><code style="font-size: 0.8rem;">${analysis.log_id || 'Unknown'}</code></td>
+                <td><code style="font-size: 0.8rem;">${analysis.api_endpoint || 'N/A'}</code></td>
+                <td>
+                    ${authMethods.length > 0 ? 
+                        authMethods.map(method => `
+                            <div style="margin-bottom: 2px;">
+                                <span style="color: #00ff88; font-weight: 600;">${method.method}</span>
+                                <div style="color: #cccccc; font-size: 0.8rem;">${method.value_preview}</div>
+                            </div>
+                        `).join('') : 
+                        '<span style="color: #888;">None</span>'
+                    }
+                </td>
+                <td>
+                    ${securityHeaders.length > 0 ? 
+                        securityHeaders.map(header => `
+                            <div style="margin-bottom: 2px;">
+                                <span style="color: #00aaff;">${header.header_name}</span>
+                                <span style="color: #888; font-size: 0.8rem;"> (${header.header_type})</span>
+                            </div>
+                        `).join('') : 
+                        '<span style="color: #888;">None</span>'
+                    }
+                </td>
+                <td>
+                    ${suspiciousPatterns.length > 0 ? 
+                        suspiciousPatterns.map(pattern => `
+                            <div style="margin-bottom: 2px; color: ${pattern.severity === 'HIGH' ? '#ff4444' : pattern.severity === 'MEDIUM' ? '#ffaa00' : '#00aaff'};">
+                                <strong>${pattern.pattern}</strong>
+                                <div style="font-size: 0.8rem;">${pattern.description}</div>
+                            </div>
+                        `).join('') : 
+                        '<span style="color: #00ff88;">None detected</span>'
+                    }
+                </td>
+                <td><small style="color: #cccccc;">${analysis.timestamp ? new Date(analysis.timestamp).toLocaleTimeString() : 'N/A'}</small></td>
+            </tr>
+        `;
+    }).join('');
+    
+    return `
+        <div style="margin-bottom: 25px;">
+            <h4 style="color: #ffffff; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                <span>📋</span>
+                <span>Outgoing Headers Analysis</span>
+            </h4>
+            
+            <div style="overflow-x: auto; background: #1a1a1a; border-radius: 8px; border: 1px solid #333;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="background: #2a2a2a; border-bottom: 2px solid #444;">
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">Log ID</th>
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">API Endpoint</th>
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">Auth Methods</th>
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">Security Headers</th>
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">Suspicious Patterns</th>
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${headerRows}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+}
+
+function generateEnhancedAIInsights(aiInsights, jwtValidation) {
+    const sessionScore = aiInsights.session_score || 0;
+    const jwtScore = aiInsights.jwt_validation_score || 0;
+    const keyFindings = aiInsights.key_findings || [];
+    const recommendations = aiInsights.recommended_actions || [];
+    
+    const getScoreColor = (score) => {
+        if (score >= 80) return '#00ff88';
+        if (score >= 60) return '#ffaa00';
+        return '#ff4444';
+    };
+    
+    const getScoreIcon = (score) => {
+        if (score >= 80) return '✅';
+        if (score >= 60) return '⚠️';
+        return '🚨';
+    };
+    
+    return `
+        <div style="margin-bottom: 25px;">
+            <h4 style="color: #ffffff; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                <span>🤖</span>
+                <span>Enhanced AI Insights</span>
+            </h4>
+            
+            <!-- Score Cards -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                <div style="background: linear-gradient(135deg, #1e3a8a, #3b82f6); padding: 20px; border-radius: 10px; text-align: center;">
+                    <div style="color: #ffffff; font-size: 0.9rem; margin-bottom: 5px;">Overall Session Score</div>
+                    <div style="color: ${getScoreColor(sessionScore)}; font-size: 2rem; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                        <span>${getScoreIcon(sessionScore)}</span>
+                        <span>${sessionScore}/100</span>
+                    </div>
+                </div>
+                
+                <div style="background: linear-gradient(135deg, #7c2d12, #ea580c); padding: 20px; border-radius: 10px; text-align: center;">
+                    <div style="color: #ffffff; font-size: 0.9rem; margin-bottom: 5px;">JWT Validation Score</div>
+                    <div style="color: ${getScoreColor(jwtScore)}; font-size: 2rem; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                        <span>${getScoreIcon(jwtScore)}</span>
+                        <span>${jwtScore}/100</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Key Findings and Recommendations -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div style="background: #1a1a1a; padding: 15px; border-radius: 8px; border-left: 4px solid #00aaff;">
+                    <h5 style="color: #00aaff; margin-bottom: 10px;">🔍 Key Findings</h5>
+                    <ul style="color: #cccccc; margin: 0; padding-left: 20px;">
+                        ${keyFindings.map(finding => `<li style="margin-bottom: 5px;">${finding}</li>`).join('')}
+                    </ul>
+                </div>
+                
+                <div style="background: #1a1a1a; padding: 15px; border-radius: 8px; border-left: 4px solid #ffaa00;">
+                    <h5 style="color: #ffaa00; margin-bottom: 10px;">💡 Recommendations</h5>
+                    <ul style="color: #cccccc; margin: 0; padding-left: 20px;">
+                        ${recommendations.map(rec => `<li style="margin-bottom: 5px;">${rec}</li>`).join('')}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function generateFraudMonitoringTable(analysis) {
+    const fraudMonitoring = analysis.fraud_monitoring_analysis || {};
+    const totalCalls = fraudMonitoring.total_calls || 0;
+    const successfulCalls = fraudMonitoring.successful_calls || 0;
+    const failedCalls = fraudMonitoring.failed_calls || 0;
+    const callCategories = fraudMonitoring.call_categories || {};
+    
+    if (totalCalls === 0) {
+        return `
+            <div style="margin-bottom: 20px; padding: 15px; background: #2a2a2a; border-radius: 8px; border-left: 4px solid #888;">
+                <h4 style="color: #ffffff; margin-bottom: 10px;">📊 Fraud Monitoring Analysis</h4>
+                <p style="color: #cccccc; margin: 0;">No fraud monitoring calls detected in session.</p>
+            </div>
+        `;
+    }
+    
+    const successRate = ((successfulCalls / totalCalls) * 100).toFixed(1);
+    const categoryRows = Object.entries(callCategories).map(([category, count]) => {
+        return `
+            <tr>
+                <td style="text-transform: capitalize;">${category.replace('_', ' ')}</td>
+                <td style="text-align: center; color: #00ff88; font-weight: 600;">${count}</td>
+                <td style="text-align: center; color: #cccccc;">${((count / totalCalls) * 100).toFixed(1)}%</td>
+                <td>
+                    <div style="background: #333; height: 6px; border-radius: 3px; overflow: hidden;">
+                        <div style="background: #00ff88; height: 100%; width: ${(count / totalCalls) * 100}%; transition: width 0.3s ease;"></div>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+    
+    return `
+        <div style="margin-bottom: 25px;">
+            <h4 style="color: #ffffff; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                <span>📊</span>
+                <span>Fraud Monitoring Analysis</span>
+            </h4>
+            
+            <!-- Summary Cards -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                <div style="background: #1a1a1a; padding: 15px; border-radius: 8px; text-align: center; border: 1px solid #333;">
+                    <div style="color: #cccccc; font-size: 0.9rem;">Total Calls</div>
+                    <div style="color: #ffffff; font-size: 1.5rem; font-weight: bold;">${totalCalls}</div>
+                </div>
+                <div style="background: #1a1a1a; padding: 15px; border-radius: 8px; text-align: center; border: 1px solid #333;">
+                    <div style="color: #cccccc; font-size: 0.9rem;">Successful</div>
+                    <div style="color: #00ff88; font-size: 1.5rem; font-weight: bold;">${successfulCalls}</div>
+                </div>
+                <div style="background: #1a1a1a; padding: 15px; border-radius: 8px; text-align: center; border: 1px solid #333;">
+                    <div style="color: #cccccc; font-size: 0.9rem;">Failed</div>
+                    <div style="color: #ff4444; font-size: 1.5rem; font-weight: bold;">${failedCalls}</div>
+                </div>
+                <div style="background: #1a1a1a; padding: 15px; border-radius: 8px; text-align: center; border: 1px solid #333;">
+                    <div style="color: #cccccc; font-size: 0.9rem;">Success Rate</div>
+                    <div style="color: ${successRate >= 80 ? '#00ff88' : successRate >= 60 ? '#ffaa00' : '#ff4444'}; font-size: 1.5rem; font-weight: bold;">${successRate}%</div>
+                </div>
+            </div>
+            
+            <!-- Category Breakdown -->
+            <div style="background: #1a1a1a; border-radius: 8px; border: 1px solid #333;">
+                <div style="background: #2a2a2a; padding: 15px; border-radius: 8px 8px 0 0; border-bottom: 1px solid #444;">
+                    <h5 style="color: #ffffff; margin: 0;">Call Categories Breakdown</h5>
+                </div>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #222; border-bottom: 1px solid #444;">
+                            <th style="padding: 12px; text-align: left; color: #ffffff; font-weight: 600;">Category</th>
+                            <th style="padding: 12px; text-align: center; color: #ffffff; font-weight: 600;">Count</th>
+                            <th style="padding: 12px; text-align: center; color: #ffffff; font-weight: 600;">Percentage</th>
+                            <th style="padding: 12px; text-align: left; color: #ffffff; font-weight: 600;">Distribution</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${categoryRows}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+}
+
+function generateSecurityRecommendations(aiInsights, jwtValidation) {
+    const recommendations = [];
+    const jwtSummary = jwtValidation.validation_summary || {};
+    
+    // Generate dynamic recommendations based on JWT validation results
+    if (jwtSummary.tokens_with_errors > 0) {
+        recommendations.push({
+            category: 'JWT Security',
+            priority: 'HIGH',
+            issue: 'Invalid JWT tokens detected',
+            action: 'Investigate JWT token generation and validation processes',
+            details: `${jwtSummary.tokens_with_errors} tokens failed validation`
+        });
+    }
+    
+    if (jwtSummary.identity_consistency_score < 95) {
+        recommendations.push({
+            category: 'Identity Validation',
+            priority: 'MEDIUM',
+            issue: 'Identity inconsistencies found',
+            action: 'Review identity claim mapping and session management',
+            details: `Consistency score: ${Math.round(jwtSummary.identity_consistency_score)}%`
+        });
+    }
+    
+    if (jwtSummary.security_issues_found > 0) {
+        recommendations.push({
+            category: 'Token Security',
+            priority: 'MEDIUM',
+            issue: 'Security indicators detected in JWT tokens',
+            action: 'Review JWT signing algorithms and token expiration policies',
+            details: `${jwtSummary.security_issues_found} security issues identified`
+        });
+    }
+    
+    // Add default recommendations if no issues found
+    if (recommendations.length === 0) {
+        recommendations.push({
+            category: 'Monitoring',
+            priority: 'LOW',
+            issue: 'Validation passed all checks',
+            action: 'Continue monitoring session patterns and maintain current security posture',
+            details: 'All JWT validation checks passed successfully'
+        });
+    }
+    
+    const getPriorityColor = (priority) => {
+        switch(priority) {
+            case 'HIGH': return '#ff4444';
+            case 'MEDIUM': return '#ffaa00';
+            case 'LOW': return '#00ff88';
+            default: return '#888888';
+        }
+    };
+    
+    const getPriorityIcon = (priority) => {
+        switch(priority) {
+            case 'HIGH': return '🚨';
+            case 'MEDIUM': return '⚠️';
+            case 'LOW': return 'ℹ️';
+            default: return '📋';
+        }
+    };
+    
+    const recommendationRows = recommendations.map(rec => {
+        return `
+            <tr>
+                <td>
+                    <span style="color: ${getPriorityColor(rec.priority)}; display: flex; align-items: center; gap: 5px; font-weight: 600;">
+                        <span>${getPriorityIcon(rec.priority)}</span>
+                        <span>${rec.priority}</span>
+                    </span>
+                </td>
+                <td style="color: #00aaff; font-weight: 600;">${rec.category}</td>
+                <td style="color: #cccccc;">${rec.issue}</td>
+                <td style="color: #ffffff;">${rec.action}</td>
+                <td style="color: #888; font-size: 0.9rem;">${rec.details}</td>
+            </tr>
+        `;
+    }).join('');
+    
+    return `
+        <div style="margin-bottom: 25px;">
+            <h4 style="color: #ffffff; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                <span>🛡️</span>
+                <span>Security Recommendations</span>
+            </h4>
+            
+            <div style="overflow-x: auto; background: #1a1a1a; border-radius: 8px; border: 1px solid #333;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="background: #2a2a2a; border-bottom: 2px solid #444;">
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">Priority</th>
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">Category</th>
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">Issue</th>
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">Recommended Action</th>
+                            <th style="padding: 12px 8px; text-align: left; color: #ffffff; font-weight: 600;">Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${recommendationRows}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+}
+
+// Enhanced CSS for JWT validation display
+function addJWTValidationStyles() {
+    const style = document.createElement('style');
+    style.textContent = `
+        .jwt-validation-summary .summary-metric {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .fraud-results-container table {
+            border-spacing: 0;
+        }
+        
+        .fraud-results-container table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #333;
+            vertical-align: top;
+        }
+        
+        .fraud-results-container table tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .badge-identity_fraud {
+            background: #ff4444;
+            color: white;
+        }
+        
+        .badge-jwt {
+            background: #00ff88;
+            color: black;
+        }
+        
+        .badge-score {
+            background: #00aaff;
+            color: white;
+        }
+        
+        .fraud-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            border-radius: 8px;
+            border-left: 4px solid #00ff88;
+        }
+        
+        .analysis-badges {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+// Initialize JWT validation styles when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    addJWTValidationStyles();
+});
+
+// Export functions for use in other modules
+window.performFraudAnalysis = performFraudAnalysis;
+window.displayEnhancedFraudResults = displayEnhancedFraudResults;
