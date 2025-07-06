@@ -1215,6 +1215,195 @@ def jenkins_health():
             'error': str(e)
         }), 500
 
+# app.py - Enhanced API endpoint for fraud analysis with JWT validation
+# Add this to your existing app.py file
+
+@app.route('/api/fraud-analysis', methods=['POST'])
+def api_fraud_analysis():
+    """Enhanced fraud analysis with JWT validation"""
+    try:
+        if not fraud_analysis_service:
+            return jsonify({
+                'success': False,
+                'error': 'Fraud analysis service not available'
+            }), 503
+        
+        data = request.get_json()
+        if not data or not data.get('session_id'):
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: session_id'
+            }), 400
+        
+        session_id = str(data['session_id']).strip()
+        fraud_type = data.get('fraud_type', 'identity_fraud')
+        include_jwt_validation = data.get('include_jwt_validation', True)
+        
+        logger.info(f"Starting enhanced fraud analysis for session: {session_id}, type: {fraud_type}")
+        
+        # Perform enhanced fraud analysis with JWT validation
+        result = fraud_analysis_service.analyze_fraud_session(session_id, fraud_type)
+        
+        if result.get('success'):
+            # Enhance response with additional metadata
+            result['analysis_metadata'] = {
+                'analysis_type': 'enhanced_with_jwt',
+                'jwt_validation_enabled': include_jwt_validation,
+                'analysis_timestamp': datetime.now().isoformat(),
+                'fraud_type': fraud_type,
+                'session_id': session_id
+            }
+            
+            # Add validation summary to top level for easy access
+            jwt_validation = result.get('jwt_validation', {})
+            if jwt_validation:
+                validation_summary = jwt_validation.get('validation_summary', {})
+                result['jwt_summary'] = {
+                    'total_tokens': validation_summary.get('total_tokens_found', 0),
+                    'successful_validations': validation_summary.get('tokens_successfully_decoded', 0),
+                    'validation_errors': validation_summary.get('tokens_with_errors', 0),
+                    'consistency_score': validation_summary.get('identity_consistency_score', 100),
+                    'overall_score': validation_summary.get('overall_score', 0),
+                    'risk_level': validation_summary.get('risk_level', 'UNKNOWN')
+                }
+            
+            logger.info(f"Enhanced fraud analysis completed successfully for session: {session_id}")
+            return jsonify(result)
+        else:
+            logger.error(f"Enhanced fraud analysis failed for session: {session_id}")
+            return jsonify(result), 500
+            
+    except Exception as e:
+        logger.error(f"Error in enhanced fraud analysis API: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'Enhanced fraud analysis failed: {str(e)}',
+            'session_id': data.get('session_id', 'unknown') if data else 'unknown'
+        }), 500
+
+@app.route('/api/jwt-validation-preview', methods=['POST'])
+def api_jwt_validation_preview():
+    """Preview JWT tokens found in session before full analysis"""
+    try:
+        if not fraud_analysis_service:
+            return jsonify({
+                'success': False,
+                'error': 'Fraud analysis service not available'
+            }), 503
+        
+        data = request.get_json()
+        if not data or not data.get('session_id'):
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: session_id'
+            }), 400
+        
+        session_id = str(data['session_id']).strip()
+        
+        logger.info(f"Generating JWT validation preview for session: {session_id}")
+        
+        # Get session logs
+        session_logs = fraud_analysis_service._gather_session_logs(session_id)
+        
+        # Flatten logs for analysis
+        all_logs = []
+        for log_type, logs in session_logs.items():
+            for log in logs:
+                log['source_type'] = log_type
+                all_logs.append(log)
+        
+        # Extract JWT tokens (quick preview)
+        jwt_tokens = fraud_analysis_service._extract_jwt_tokens_from_logs(all_logs)
+        
+        # Quick analysis of headers
+        headers_with_auth = 0
+        total_api_calls = 0
+        
+        for log in all_logs:
+            if log.get('api_endpoint'):
+                total_api_calls += 1
+            
+            # Check for authentication headers
+            for field in ['headers', 'outgoing_headers', 'request_headers']:
+                if field in log:
+                    header_data = str(log[field]).lower()
+                    if 'authorization' in header_data or 'bearer' in header_data:
+                        headers_with_auth += 1
+                        break
+        
+        preview_result = {
+            'success': True,
+            'session_id': session_id,
+            'preview_data': {
+                'total_logs_analyzed': len(all_logs),
+                'jwt_tokens_found': len(jwt_tokens),
+                'api_calls_detected': total_api_calls,
+                'headers_with_auth': headers_with_auth,
+                'token_sources': list(set([token.get('source_field', 'unknown') for token in jwt_tokens])),
+                'api_endpoints_with_tokens': list(set([token.get('api_endpoint', 'unknown') for token in jwt_tokens if token.get('api_endpoint')])),
+                'estimated_validation_time': min(10 + (len(jwt_tokens) * 3), 60)  # seconds
+            },
+            'has_jwt_data': len(jwt_tokens) > 0,
+            'analysis_ready': len(jwt_tokens) > 0 and total_api_calls > 0
+        }
+        
+        logger.info(f"JWT validation preview completed: {len(jwt_tokens)} tokens found")
+        
+        return jsonify(preview_result)
+        
+    except Exception as e:
+        logger.error(f"Error in JWT validation preview: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'JWT validation preview failed: {str(e)}',
+            'session_id': data.get('session_id', 'unknown') if data else 'unknown'
+        }), 500
+
+@app.route('/api/jwt-token-details', methods=['POST'])
+def api_jwt_token_details():
+    """Get detailed information about specific JWT token"""
+    try:
+        if not fraud_analysis_service:
+            return jsonify({
+                'success': False,
+                'error': 'Fraud analysis service not available'
+            }), 503
+        
+        data = request.get_json()
+        if not data or not data.get('token'):
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: token'
+            }), 400
+        
+        token = data.get('token')
+        
+        logger.info("Analyzing individual JWT token details")
+        
+        # Create mock token info for validation
+        token_info = {
+            'token': token,
+            'log_id': data.get('log_id', 'manual'),
+            'source_field': data.get('source_field', 'manual_input'),
+            'api_endpoint': data.get('api_endpoint', 'N/A'),
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        # Validate the token
+        validation_result = fraud_analysis_service._validate_individual_jwt_token(token_info)
+        
+        # Add additional analysis
+        validation_result['token_analysis'] = {
+            'token_length': len(token),
+            'parts_count': len(token.split('.')),
+            'estimated_payload_size': len(token.split('.')[1]) if len(token.split('.')) > 1 else 0,
+            'analysis_timestamp': datetime.now().isoformat()
+        }
+        
+        result = {
+            'success': True,
+            '
+
 # Update the health check endpoint to include Jenkins
 @app.route('/api/health', methods=['GET'])
 def health_check():
