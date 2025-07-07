@@ -585,636 +585,6 @@ def get_log_components(log_type):
 
 # Add these endpoints to app.py
 
-@app.route('/api/fraud-analysis', methods=['POST'])
-def api_fraud_analysis():
-    """API endpoint for comprehensive fraud analysis with AI-powered API call analysis"""
-    
-    if not fraud_analysis_service:
-        return jsonify({
-            'success': False,
-            'error': 'Fraud analysis service not available. Please check Elasticsearch and OpenAI configuration.'
-        }), 503
-        
-    try:
-        data = request.get_json()
-        
-        # Validate required fields
-        if not data or not data.get('session_id') or not data.get('fraud_type'):
-            return jsonify({
-                'success': False,
-                'error': 'Missing required fields: session_id and fraud_type'
-            }), 400
-        
-        session_id = str(data['session_id']).strip()
-        fraud_type = str(data['fraud_type']).strip()
-        
-        # Validate fraud type
-        valid_fraud_types = ['digital_fraud', 'assisted_fraud', 'transaction_fraud', 'identity_fraud']
-        if fraud_type not in valid_fraud_types:
-            return jsonify({
-                'success': False,
-                'error': f'Invalid fraud type. Must be one of: {", ".join(valid_fraud_types)}'
-            }), 400
-        
-        logger.info(f"Starting AI-powered fraud analysis for session: {session_id}, type: {fraud_type}")
-        
-        # Perform AI-enhanced fraud analysis
-        result = fraud_analysis_service.analyze_fraud_session(session_id, fraud_type)
-        
-        # Add metadata about AI analysis
-        if result.get('success') and result.get('analysis'):
-            monitoring_analysis = result['analysis'].get('monitoring_analysis', {})
-            api_call_count = len(monitoring_analysis.get('api_call_analysis', []))
-            
-            result['metadata'] = {
-                'ai_analysis_enabled': True,
-                'api_calls_analyzed': api_call_count,
-                'analysis_timestamp': datetime.now().isoformat(),
-                'model_used': Config.OPENAI_MODEL if hasattr(Config, 'OPENAI_MODEL') else 'gpt-3.5-turbo'
-            }
-            
-            logger.info(f"AI analysis completed: {api_call_count} API calls analyzed for session {session_id}")
-        
-        return jsonify(result)
-        
-    except Exception as e:
-        logger.error(f"Fraud analysis API error: {e}")
-        return jsonify({
-            'success': False,
-            'error': f'Fraud analysis failed: {str(e)}',
-            'details': 'Check that OpenAI API key is configured and Elasticsearch is accessible'
-        }), 500
-
-@app.route('/api/fraud-types', methods=['GET'])
-def get_fraud_types():
-    """Get available fraud analysis types with AI capabilities info"""
-    try:
-        if fraud_analysis_service:
-            fraud_types = fraud_analysis_service.get_fraud_types()
-            
-            # Add AI capabilities info
-            for fraud_type in fraud_types.values():
-                fraud_type['ai_enabled'] = True
-                fraud_type['ai_features'] = [
-                    'API call purpose analysis',
-                    'Error pattern detection', 
-                    'Risk indicator identification',
-                    'Business impact assessment',
-                    'Automated recommendations'
-                ]
-        else:
-            fraud_types = {}
-        
-        return jsonify({
-            'success': True,
-            'fraud_types': fraud_types,
-            'ai_capabilities': {
-                'model': getattr(Config, 'OPENAI_MODEL', 'gpt-3.5-turbo'),
-                'features': [
-                    'Real-time API call analysis',
-                    'Intelligent error categorization',
-                    'Risk pattern recognition',
-                    'Business impact scoring',
-                    'Actionable recommendations'
-                ]
-            }
-        })
-    except Exception as e:
-        logger.error(f"Error getting fraud types: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/fraud-session-preview', methods=['POST'])
-def api_fraud_session_preview():
-    """Preview session data before full AI-powered fraud analysis"""
-    try:
-        if not fraud_analysis_service:
-            return jsonify({
-                'success': False,
-                'error': 'Fraud analysis service not available'
-            }), 503
-        
-        data = request.get_json()
-        if not data or not data.get('session_id'):
-            return jsonify({
-                'success': False,
-                'error': 'Missing required field: session_id'
-            }), 400
-        
-        session_id = str(data['session_id']).strip()
-        
-        logger.info(f"Generating session preview for: {session_id}")
-        
-        # Get basic session information
-        session_logs = fraud_analysis_service._gather_session_logs(session_id)
-        
-        # Quick classification
-        order_classification = fraud_analysis_service._classify_order_type(session_logs)
-        customer_type = fraud_analysis_service._determine_customer_type(session_logs)
-        
-        # Count logs by type and identify API calls
-        log_counts = {log_type: len(logs) for log_type, logs in session_logs.items()}
-        
-        # Count potential API calls for AI analysis
-        api_call_candidates = 0
-        for log_type, logs in session_logs.items():
-            for log in logs:
-                if fraud_analysis_service._is_api_related_log(log):
-                    api_call_candidates += 1
-        
-        preview_result = {
-            'success': True,
-            'session_id': session_id,
-            'log_counts': log_counts,
-            'total_logs': sum(log_counts.values()),
-            'api_call_candidates': api_call_candidates,
-            'order_classification': order_classification,
-            'customer_type': customer_type,
-            'has_data': sum(log_counts.values()) > 0,
-            'ai_analysis_ready': api_call_candidates > 0,
-            'estimated_analysis_time': min(30 + (api_call_candidates * 2), 180)  # Seconds
-        }
-        
-        logger.info(f"Session preview completed: {api_call_candidates} API calls identified for AI analysis")
-        
-        return jsonify(preview_result)
-        
-    except Exception as e:
-        logger.error(f"Fraud session preview error: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/debug-fraud-analysis', methods=['POST'])
-def debug_fraud_analysis():
-    """Debug endpoint to test fraud analysis with detailed logging"""
-    try:
-        data = request.get_json()
-        session_id = data.get('session_id', 'debug_session_123')
-        fraud_type = data.get('fraud_type', 'digital_fraud')
-        
-        logger.info(f"=== DEBUG FRAUD ANALYSIS START ===")
-        logger.info(f"Session ID: {session_id}")
-        logger.info(f"Fraud Type: {fraud_type}")
-        
-        debug_info = {
-            'step_1_initialization': 'Service initialized successfully',
-            'step_2_log_gathering': {},
-            'step_3_log_processing': {},
-            'step_4_ai_analysis': {},
-            'step_5_final_result': {}
-        }
-        
-        # Step 1: Test service initialization
-        try:
-            debug_info['step_1_initialization'] = {
-                'status': 'success',
-                'fraud_service_available': fraud_analysis_service is not None,
-                'elasticsearch_available': hasattr(fraud_analysis_service, 'elasticsearch_service') if fraud_analysis_service else False,
-                'openai_configured': bool(getattr(Config, 'OPENAI_API_KEY', None))
-            }
-        except Exception as e:
-            debug_info['step_1_initialization'] = {'status': 'failed', 'error': str(e)}
-        
-        if not fraud_analysis_service:
-            return jsonify({
-                'success': False,
-                'debug_info': debug_info,
-                'error': 'Fraud analysis service not initialized'
-            })
-        
-        # Step 2: Test log gathering
-        try:
-            session_logs = fraud_analysis_service._gather_session_logs(session_id)
-            debug_info['step_2_log_gathering'] = {
-                'status': 'success',
-                'log_counts': {k: len(v) for k, v in session_logs.items()},
-                'total_logs': sum(len(v) for v in session_logs.values()),
-                'sample_log_types': list(session_logs.keys())
-            }
-            logger.info(f"Log gathering result: {debug_info['step_2_log_gathering']}")
-        except Exception as e:
-            debug_info['step_2_log_gathering'] = {'status': 'failed', 'error': str(e)}
-            session_logs = {}
-        
-        # Step 3: Test log processing (looking for API calls)
-        try:
-            all_api_logs = []
-            for log_type, logs in session_logs.items():
-                api_logs_in_type = []
-                for log_entry in logs:
-                    if fraud_analysis_service._is_api_related_log(log_entry):
-                        api_logs_in_type.append(log_entry)
-                        log_entry['source_type'] = log_type
-                        all_api_logs.append(log_entry)
-                
-                debug_info['step_3_log_processing'][log_type] = {
-                    'total_logs': len(logs),
-                    'api_related_logs': len(api_logs_in_type),
-                    'sample_messages': [log.get('message', '')[:100] for log in logs[:3]]
-                }
-            
-            debug_info['step_3_log_processing']['summary'] = {
-                'total_api_logs_found': len(all_api_logs),
-                'will_use_mock_data': len(all_api_logs) == 0
-            }
-            
-            # If no API logs found, show what mock data would be created
-            if len(all_api_logs) == 0:
-                mock_logs = fraud_analysis_service._create_mock_api_logs(fraud_type)
-                debug_info['step_3_log_processing']['mock_data_preview'] = {
-                    'mock_logs_count': len(mock_logs),
-                    'mock_log_examples': [
-                        {
-                            'endpoint': log.get('api_endpoint'),
-                            'method': log.get('http_method'),
-                            'message': log.get('message', '')[:100]
-                        } for log in mock_logs[:2]
-                    ]
-                }
-                all_api_logs = mock_logs
-                
-            logger.info(f"Log processing result: {debug_info['step_3_log_processing']['summary']}")
-                
-        except Exception as e:
-            debug_info['step_3_log_processing'] = {'status': 'failed', 'error': str(e)}
-            all_api_logs = []
-        
-        # Step 4: Test AI analysis on first log
-        try:
-            if all_api_logs:
-                sample_log = all_api_logs[0]
-                ai_analysis = fraud_analysis_service._analyze_api_call_with_ai(sample_log, fraud_type)
-                
-                debug_info['step_4_ai_analysis'] = {
-                    'status': 'success',
-                    'sample_analysis': {
-                        'api_endpoint': ai_analysis.get('api_endpoint'),
-                        'request_purpose': ai_analysis.get('request_purpose'),
-                        'is_successful': ai_analysis.get('is_successful'),
-                        'confidence_score': ai_analysis.get('confidence_score'),
-                        'risk_indicators_count': len(ai_analysis.get('risk_indicators', []))
-                    }
-                }
-                logger.info(f"AI analysis successful for sample log")
-            else:
-                debug_info['step_4_ai_analysis'] = {'status': 'skipped', 'reason': 'No logs to analyze'}
-        except Exception as e:
-            debug_info['step_4_ai_analysis'] = {'status': 'failed', 'error': str(e)}
-        
-        # Step 5: Test full analysis
-        try:
-            full_result = fraud_analysis_service.analyze_fraud_session(session_id, fraud_type)
-            
-            if full_result.get('success'):
-                analysis = full_result.get('analysis', {})
-                monitoring = analysis.get('monitoring_analysis', {})
-                
-                debug_info['step_5_final_result'] = {
-                    'status': 'success',
-                    'api_calls_analyzed': len(monitoring.get('api_call_analysis', [])),
-                    'success_rate': monitoring.get('success_rate', 0),
-                    'risk_level': analysis.get('risk_assessment', {}).get('level', 'Unknown'),
-                    'recommendations_count': len(analysis.get('recommendations', [])),
-                    'has_ai_insights': bool(monitoring.get('ai_insights', {}).get('session_score'))
-                }
-                
-                # Store the result for display
-                debug_info['full_analysis_result'] = full_result
-                logger.info(f"Full analysis completed successfully")
-            else:
-                debug_info['step_5_final_result'] = {
-                    'status': 'failed', 
-                    'error': full_result.get('error', 'Unknown error')
-                }
-                
-        except Exception as e:
-            debug_info['step_5_final_result'] = {'status': 'failed', 'error': str(e)}
-        
-        logger.info(f"=== DEBUG FRAUD ANALYSIS COMPLETE ===")
-        
-        return jsonify({
-            'success': True,
-            'debug_info': debug_info,
-            'recommendations': [
-                'Check the step-by-step debug information above',
-                'If step_2_log_gathering shows 0 logs, verify Elasticsearch connection',
-                'If step_3_log_processing shows will_use_mock_data=true, mock data will be used for demonstration',
-                'If step_4_ai_analysis fails, check OpenAI API key configuration',
-                'The full_analysis_result contains the complete fraud analysis for UI display'
-            ]
-        })
-        
-    except Exception as e:
-        logger.error(f"Debug fraud analysis failed: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e),
-            'debug_tip': 'Check that FraudAnalysisService can be imported and initialized'
-        }), 500
-
-@app.route('/api/test-fraud-ui', methods=['GET'])
-def test_fraud_ui():
-    """Test endpoint that returns mock fraud analysis data for UI testing"""
-    mock_result = {
-        'success': True,
-        'session_id': 'ui_test_session',
-        'fraud_type': 'digital_fraud',
-        'analysis': {
-            'monitoring_analysis': {
-                'api_call_analysis': [
-                    {
-                        'api_endpoint': '/api/fraud/risk-assessment',
-                        'http_method': 'POST',
-                        'request_purpose': 'Comprehensive fraud risk evaluation for digital transaction',
-                        'response_analysis': 'Risk assessment completed successfully with comprehensive scoring across multiple fraud vectors',
-                        'is_successful': True,
-                        'error_details': None,
-                        'fraud_relevance': 'Primary fraud detection mechanism providing multi-factor risk analysis',
-                        'risk_indicators': ['high_velocity_transactions', 'new_device_detected', 'unusual_location'],
-                        'business_impact': 'Critical for transaction approval decision - prevents potential fraud losses',
-                        'recommendations': 'Continue enhanced monitoring for velocity patterns and device anomalies',
-                        'processing_time_ms': 245,
-                        'status_code': 200,
-                        'confidence_score': 0.92,
-                        'timestamp': '2025-01-03T10:30:00Z',
-                        'log_level': 'INFO',
-                        'source_type': 'fraud_detection',
-                        'session_id': 'ui_test_session',
-                        'original_message': 'Multi-factor fraud risk assessment completed for session',
-                        'component': 'fraud-risk-engine',
-                        'raw_log_id': 'log_fra_001'
-                    },
-                    {
-                        'api_endpoint': '/api/payment/gateway/process',
-                        'http_method': 'POST',
-                        'request_purpose': 'Process payment transaction through secure gateway',
-                        'response_analysis': 'Payment processing failed due to insufficient account balance',
-                        'is_successful': False,
-                        'error_details': 'Transaction declined: Insufficient funds in linked account',
-                        'fraud_relevance': 'Payment failure could indicate account compromise or unauthorized access attempts',
-                        'risk_indicators': ['payment_decline', 'insufficient_funds', 'multiple_retry_attempts'],
-                        'business_impact': 'Transaction rejected resulting in revenue loss and potential customer friction',
-                        'recommendations': 'Verify account status, review recent transaction history, implement payment retry logic',
-                        'processing_time_ms': 180,
-                        'status_code': 402,
-                        'confidence_score': 0.88,
-                        'timestamp': '2025-01-03T10:30:05Z',
-                        'log_level': 'ERROR',
-                        'source_type': 'payment_gateway',
-                        'session_id': 'ui_test_session',
-                        'original_message': 'Payment gateway processing failed - insufficient funds',
-                        'component': 'payment-processor',
-                        'raw_log_id': 'log_pay_002'
-                    },
-                    {
-                        'api_endpoint': '/api/device/fingerprint/analyze',
-                        'http_method': 'POST',
-                        'request_purpose': 'Advanced device fingerprinting and behavioral analysis',
-                        'response_analysis': 'Device analysis completed with elevated risk indicators detected',
-                        'is_successful': True,
-                        'error_details': None,
-                        'fraud_relevance': 'Device fingerprinting critical for detecting bot activity and device spoofing',
-                        'risk_indicators': ['unusual_browser_fingerprint', 'vpn_detected', 'automation_patterns'],
-                        'business_impact': 'Enables detection of automated fraud attempts and device-based attacks',
-                        'recommendations': 'Flag session for enhanced monitoring, require additional authentication',
-                        'processing_time_ms': 320,
-                        'status_code': 200,
-                        'confidence_score': 0.85,
-                        'timestamp': '2025-01-03T10:29:55Z',
-                        'log_level': 'WARN',
-                        'source_type': 'fraud_detection',
-                        'session_id': 'ui_test_session',
-                        'original_message': 'Device fingerprinting analysis detected suspicious patterns',
-                        'component': 'device-analyzer',
-                        'raw_log_id': 'log_dev_003'
-                    }
-                ],
-                'ai_insights': {
-                    'overall_session_health': 'Session exhibits mixed indicators with successful fraud detection but payment processing challenges and elevated device risk signals',
-                    'key_findings': [
-                        'Fraud detection systems functioning properly',
-                        'Payment processing failed due to insufficient funds',
-                        'Device analysis reveals suspicious automation patterns',
-                        'Multiple risk indicators present across different service layers'
-                    ],
-                    'fraud_risk_assessment': 'Medium-to-high risk due to payment failures, device anomalies, and velocity patterns suggesting potential fraudulent activity',
-                    'critical_issues': [
-                        'Payment processing failure indicating potential account issues',
-                        'Device fingerprinting shows automation and VPN usage',
-                        'Multiple retry attempts suggesting scripted behavior'
-                    ],
-                    'positive_indicators': [
-                        'Fraud detection system actively monitoring and scoring',
-                        'Risk assessment engine operational with high confidence',
-                        'Device analysis successfully detecting anomalies'
-                    ],
-                    'recommended_actions': [
-                        'Implement immediate enhanced verification for this session',
-                        'Review account balance verification and notification processes',
-                        'Consider implementing progressive authentication for suspicious devices',
-                        'Enhance monitoring for payment retry patterns and velocity'
-                    ],
-                    'session_score': 68,
-                    'confidence_level': 'high'
-                },
-                'summary_statistics': {
-                    'total_api_calls': 3,
-                    'successful_calls': 2,
-                    'failed_calls': 1,
-                    'success_rate': 0.67,
-                    'unique_endpoints': 3,
-                    'error_types': {'payment_errors': 1}
-                }
-            },
-            'order_classification': {
-                'type': 'purchase',
-                'confidence': 0.78,
-                'amount': 247.50,
-                'currency': 'USD',
-                'indicators': ['purchase', 'checkout', 'payment']
-            },
-            'customer_type': {
-                'type': 'existing_customer',
-                'confidence': 0.65,
-                'customer_id': 'cust_78945612',
-                'indicators': ['previous_orders']
-            },
-            'risk_assessment': {
-                'level': 'MEDIUM',
-                'score': 68,
-                'color': '#ffaa00',
-                'factors': [
-                    'Payment processing failure with insufficient funds',
-                    'Device fingerprinting detected automation patterns',
-                    'VPN usage and unusual browser characteristics',
-                    'Multiple transaction retry attempts'
-                ]
-            },
-            'recommendations': [
-                'Require additional identity verification for this session',
-                'Review and update account balance notification system',
-                'Implement enhanced device authentication for suspicious fingerprints',
-                'Monitor transaction velocity and retry patterns more closely',
-                'Consider progressive friction for automated behavior detection'
-            ],
-            'statistics': {
-                'total_logs_analyzed': 18,
-                'fraud_calls_triggered': 3,
-                'fraud_call_success_rate': 0.67,
-                'risk_scores_recorded': 2,
-                'decisions_made': 3
-            },
-            'timeline': [
-                {
-                    'timestamp': '2025-01-03T10:29:55Z',
-                    'event': 'Device Analysis: fingerprint/analyze',
-                    'status': 'Success',
-                    'details': 'Advanced device fingerprinting and behavioral analysis'
-                },
-                {
-                    'timestamp': '2025-01-03T10:30:00Z',
-                    'event': 'Fraud Detection: risk-assessment',
-                    'status': 'Success',
-                    'details': 'Comprehensive fraud risk evaluation for digital transaction'
-                },
-                {
-                    'timestamp': '2025-01-03T10:30:05Z',
-                    'event': 'Payment Processing: gateway/process',
-                    'status': 'Failed',
-                    'details': 'Process payment transaction through secure gateway'
-                }
-            ]
-        }
-    }
-    
-    return jsonify(mock_result)
-@app.route('/api/jenkins-jobs', methods=['GET'])
-def get_jenkins_jobs():
-    """Get available Jenkins jobs"""
-    if not jenkins_service:
-        return jsonify({
-            'success': False,
-            'error': 'Jenkins service not available. Please check Jenkins configuration.'
-        }), 503
-    
-    try:
-        result = jenkins_service.get_available_jobs()
-        return jsonify(result)
-    except Exception as e:
-        logger.error(f"Error getting Jenkins jobs: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/jenkins-job-info/<job_type>', methods=['GET'])
-def get_jenkins_job_info(job_type):
-    """Get information about a specific Jenkins job"""
-    if not jenkins_service:
-        return jsonify({
-            'success': False,
-            'error': 'Jenkins service not available'
-        }), 503
-    
-    try:
-        result = jenkins_service.get_job_info(job_type)
-        return jsonify(result)
-    except Exception as e:
-        logger.error(f"Error getting job info for {job_type}: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/jenkins-trigger-job', methods=['POST'])
-def trigger_jenkins_job():
-    """Trigger a Jenkins job with parameters"""
-    if not jenkins_service:
-        return jsonify({
-            'success': False,
-            'error': 'Jenkins service not available. Please check Jenkins configuration.'
-        }), 503
-    
-    try:
-        data = request.get_json()
-        
-        if not data or not data.get('job_type'):
-            return jsonify({
-                'success': False,
-                'error': 'Missing required field: job_type'
-            }), 400
-        
-        job_type = str(data['job_type']).strip()
-        parameters = data.get('parameters', {})
-        
-        # Validate parameters before triggering
-        validation_result = jenkins_service.validate_parameters(job_type, parameters)
-        
-        if not validation_result['success']:
-            return jsonify({
-                'success': False,
-                'error': 'Parameter validation failed',
-                'validation_errors': validation_result['errors'],
-                'validation_warnings': validation_result.get('warnings', [])
-            }), 400
-        
-        # Trigger the job
-        result = jenkins_service.trigger_job(job_type, validation_result['validated_parameters'])
-        
-        # Log the job trigger for auditing
-        if result['success']:
-            logger.info(f"Jenkins job {job_type} triggered successfully with parameters: {list(parameters.keys())}")
-        
-        return jsonify(result)
-        
-    except Exception as e:
-        logger.error(f"Jenkins job trigger error: {e}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to trigger job: {str(e)}'
-        }), 500
-
-@app.route('/api/jenkins-build-status/<job_type>/<int:build_number>', methods=['GET'])
-def get_jenkins_build_status(job_type, build_number):
-    """Get status of a specific Jenkins build"""
-    if not jenkins_service:
-        return jsonify({
-            'success': False,
-            'error': 'Jenkins service not available'
-        }), 503
-    
-    try:
-        result = jenkins_service.get_build_status(job_type, build_number)
-        return jsonify(result)
-    except Exception as e:
-        logger.error(f"Error getting build status: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/jenkins-health', methods=['GET'])
-def jenkins_health():
-    """Check Jenkins connection health"""
-    if not jenkins_service:
-        return jsonify({
-            'success': False,
-            'error': 'Jenkins service not available'
-        }), 503
-    
-    try:
-        result = jenkins_service.test_connection()
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
 # app.py - Enhanced API endpoint for fraud analysis with JWT validation
 # Add this to your existing app.py file
 
@@ -1402,7 +772,379 @@ def api_jwt_token_details():
         
         result = {
             'success': True,
+            'token_details': validation_result,
+            'recommendations': []
+        }
+        
+        # Generate token-specific recommendations
+        if validation_result.get('validation_status') == 'INVALID_STRUCTURE':
+            result['recommendations'].append('Token structure is invalid - verify JWT format')
+        
+        if validation_result.get('expiry_status') == 'EXPIRED':
+            result['recommendations'].append('Token is expired - refresh authentication')
+        
+        security_indicators = validation_result.get('security_indicators', [])
+        if security_indicators:
+            for indicator in security_indicators:
+                if indicator.get('severity') == 'HIGH':
+                    result['recommendations'].append(f"Security risk: {indicator.get('description')}")
+        
+        if not result['recommendations']:
+            result['recommendations'].append('Token validation passed all checks')
+        
+        logger.info("JWT token details analysis completed")
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Error in JWT token details analysis: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'JWT token analysis failed: {str(e)}'
+        }), 500
+
+@app.route('/api/identity-consistency-check', methods=['POST'])
+def api_identity_consistency_check():
+    """Perform identity consistency check across multiple JWT tokens"""
+    try:
+        if not fraud_analysis_service:
+            return jsonify({
+                'success': False,
+                'error': 'Fraud analysis service not available'
+            }), 503
+        
+        data = request.get_json()
+        if not data or not data.get('session_id'):
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: session_id'
+            }), 400
+        
+        session_id = str(data['session_id']).strip()
+        
+        logger.info(f"Performing identity consistency check for session: {session_id}")
+        
+        # Get session logs and extract JWT tokens
+        session_logs = fraud_analysis_service._gather_session_logs(session_id)
+        all_logs = []
+        for log_type, logs in session_logs.items():
+            for log in logs:
+                log['source_type'] = log_type
+                all_logs.append(log)
+        
+        jwt_tokens = fraud_analysis_service._extract_jwt_tokens_from_logs(all_logs)
+        
+        if not jwt_tokens:
+            return jsonify({
+                'success': True,
+                'session_id': session_id,
+                'consistency_results': {
+                    'status': 'NO_TOKENS',
+                    'message': 'No JWT tokens found for consistency analysis',
+                    'token_count': 0,
+                    'consistency_score': 100,
+                    'issues': []
+                }
+            })
+        
+        # Validate all tokens and extract identity data
+        token_validations = []
+        for token_info in jwt_tokens:
+            validation = fraud_analysis_service._validate_individual_jwt_token(token_info)
+            token_validations.append(validation)
+        
+        # Store validations for consistency analysis
+        fraud_analysis_service.current_validations = token_validations
+        
+        # Perform consistency analysis
+        consistency_checks = fraud_analysis_service._analyze_identity_consistency(jwt_tokens, all_logs)
+        
+        # Calculate overall consistency score
+        total_checks = len([c for c in consistency_checks if c.get('check_type') in ['IDENTITY_CONSISTENT', 'IDENTITY_INCONSISTENCY']])
+        passed_checks = len([c for c in consistency_checks if c.get('status') == 'PASS'])
+        
+        consistency_score = (passed_checks / total_checks * 100) if total_checks > 0 else 100
+        
+        # Identify critical issues
+        critical_issues = [c for c in consistency_checks if c.get('severity') == 'HIGH']
+        
+        result = {
+            'success': True,
+            'session_id': session_id,
+            'consistency_results': {
+                'status': 'ANALYZED',
+                'token_count': len(jwt_tokens),
+                'consistency_score': round(consistency_score, 1),
+                'total_checks': total_checks,
+                'passed_checks': passed_checks,
+                'failed_checks': total_checks - passed_checks,
+                'critical_issues': len(critical_issues),
+                'detailed_checks': consistency_checks,
+                'risk_level': 'HIGH' if consistency_score < 80 else 'MEDIUM' if consistency_score < 95 else 'LOW'
+            }
+        }
+        
+        logger.info(f"Identity consistency check completed: {consistency_score}% consistency")
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Error in identity consistency check: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'Identity consistency check failed: {str(e)}',
+            'session_id': data.get('session_id', 'unknown') if data else 'unknown'
+        }), 500
+
+# Enhanced fraud types endpoint with JWT validation info
+@app.route('/api/fraud-types', methods=['GET'])
+def api_fraud_types_enhanced():
+    """Get available fraud analysis types with JWT validation capabilities"""
+    try:
+        fraud_types = {
+            'identity_fraud': {
+                'title': 'Identity Fraud Analysis',
+                'description': 'Comprehensive identity verification with JWT token validation and consistency checks',
+                'icon': '🆔',
+                'features': [
+                    'JWT token extraction and validation',
+                    'Identity claim consistency analysis', 
+                    'Outgoing header analysis',
+                    'Cross-reference validation',
+                    'Security indicator detection',
+                    'AI-powered risk assessment'
+                ],
+                'jwt_validation': True,
+                'estimated_time': '15-30 seconds'
+            },
+            'digital_fraud': {
+                'title': 'Digital Fraud Detection',
+                'description': 'Bot detection and digital fingerprinting analysis',
+                'icon': '🤖',
+                'features': [
+                    'Bot behavior analysis',
+                    'Device fingerprinting',
+                    'Session pattern analysis',
+                    'Digital fraud indicators'
+                ],
+                'jwt_validation': False,
+                'estimated_time': '10-20 seconds'
+            },
+            'transaction_fraud': {
+                'title': 'Transaction Fraud Analysis',
+                'description': 'Transaction pattern and velocity analysis',
+                'icon': '💳',
+                'features': [
+                    'Velocity pattern analysis',
+                    'Transaction risk scoring',
+                    'Payment fraud detection',
+                    'Amount validation'
+                ],
+                'jwt_validation': False,
+                'estimated_time': '10-15 seconds'
+            },
+            'assisted_fraud': {
+                'title': 'Assisted Fraud Detection',
+                'description': 'Human-assisted fraud pattern analysis',
+                'icon': '👥',
+                'features': [
+                    'Behavioral analysis',
+                    'Interaction patterns',
+                    'Assistance fraud indicators',
+                    'Social engineering detection'
+                ],
+                'jwt_validation': False,
+                'estimated_time': '15-25 seconds'
+            }
+        }
+        
+        return jsonify({
+            'success': True,
+            'fraud_types': fraud_types,
+            'jwt_validation_available': True,
+            'enhanced_features': [
+                'Real-time JWT token analysis',
+                'Identity consistency validation',
+                'Security header analysis',
+                'Cross-parameter verification',
+                'Enhanced AI insights'
+            ]
+        })
+    except Exception as e:
+        logger.error(f"Error getting enhanced fraud types: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+# Additional utility endpoint for JWT token testing
+@app.route('/api/test-jwt-extraction', methods=['POST'])
+def api_test_jwt_extraction():
+    """Test JWT token extraction from sample text (for debugging)"""
+    try:
+        data = request.get_json()
+        if not data or not data.get('sample_text'):
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: sample_text'
+            }), 400
+        
+        sample_text = data.get('sample_text')
+        
+        logger.info("Testing JWT extraction from sample text")
+        
+        # Use fraud analysis service to extract tokens
+        tokens = fraud_analysis_service._find_jwt_tokens_in_text(sample_text)
+        
+        result = {
+            'success': True,
+            'sample_text_length': len(sample_text),
+            'tokens_found': len(tokens),
+            'tokens': tokens,
+            'patterns_matched': []
+        }
+        
+        # Check which patterns matched
+        for pattern_name, pattern in fraud_analysis_service.jwt_patterns.items():
+            import re
+            if re.search(pattern, sample_text):
+                result['patterns_matched'].append(pattern_name)
+        
+        logger.info(f"JWT extraction test completed: {len(tokens)} tokens found")
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Error in JWT extraction test: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'JWT extraction test failed: {str(e)}'
+        }), 500
             '
+        
+@app.route('/api/jenkins-jobs', methods=['GET'])
+def get_jenkins_jobs():
+    """Get available Jenkins jobs"""
+    if not jenkins_service:
+        return jsonify({
+            'success': False,
+            'error': 'Jenkins service not available. Please check Jenkins configuration.'
+        }), 503
+    
+    try:
+        result = jenkins_service.get_available_jobs()
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error getting Jenkins jobs: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/jenkins-job-info/<job_type>', methods=['GET'])
+def get_jenkins_job_info(job_type):
+    """Get information about a specific Jenkins job"""
+    if not jenkins_service:
+        return jsonify({
+            'success': False,
+            'error': 'Jenkins service not available'
+        }), 503
+    
+    try:
+        result = jenkins_service.get_job_info(job_type)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error getting job info for {job_type}: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/jenkins-trigger-job', methods=['POST'])
+def trigger_jenkins_job():
+    """Trigger a Jenkins job with parameters"""
+    if not jenkins_service:
+        return jsonify({
+            'success': False,
+            'error': 'Jenkins service not available. Please check Jenkins configuration.'
+        }), 503
+    
+    try:
+        data = request.get_json()
+        
+        if not data or not data.get('job_type'):
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: job_type'
+            }), 400
+        
+        job_type = str(data['job_type']).strip()
+        parameters = data.get('parameters', {})
+        
+        # Validate parameters before triggering
+        validation_result = jenkins_service.validate_parameters(job_type, parameters)
+        
+        if not validation_result['success']:
+            return jsonify({
+                'success': False,
+                'error': 'Parameter validation failed',
+                'validation_errors': validation_result['errors'],
+                'validation_warnings': validation_result.get('warnings', [])
+            }), 400
+        
+        # Trigger the job
+        result = jenkins_service.trigger_job(job_type, validation_result['validated_parameters'])
+        
+        # Log the job trigger for auditing
+        if result['success']:
+            logger.info(f"Jenkins job {job_type} triggered successfully with parameters: {list(parameters.keys())}")
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Jenkins job trigger error: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to trigger job: {str(e)}'
+        }), 500
+
+@app.route('/api/jenkins-build-status/<job_type>/<int:build_number>', methods=['GET'])
+def get_jenkins_build_status(job_type, build_number):
+    """Get status of a specific Jenkins build"""
+    if not jenkins_service:
+        return jsonify({
+            'success': False,
+            'error': 'Jenkins service not available'
+        }), 503
+    
+    try:
+        result = jenkins_service.get_build_status(job_type, build_number)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error getting build status: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/jenkins-health', methods=['GET'])
+def jenkins_health():
+    """Check Jenkins connection health"""
+    if not jenkins_service:
+        return jsonify({
+            'success': False,
+            'error': 'Jenkins service not available'
+        }), 503
+    
+    try:
+        result = jenkins_service.test_connection()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 
 # Update the health check endpoint to include Jenkins
 @app.route('/api/health', methods=['GET'])
