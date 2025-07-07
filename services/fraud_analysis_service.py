@@ -1497,8 +1497,14 @@ def analyze_fraud_session(self, session_id: str, fraud_type: str) -> Dict[str, A
                 'details': {}
             }]
         
+        # Validate all tokens first to get identity data
+        token_validations = []
+        for token_info in jwt_tokens:
+            validation = self._validate_individual_jwt_token(token_info)
+            token_validations.append(validation)
+        
         # Group tokens by identity claims
-        identity_groups = self._group_tokens_by_identity(jwt_tokens)
+        identity_groups = self._group_tokens_by_identity(jwt_tokens, token_validations)
         
         # Check for identity consistency
         for identity_type, token_data in identity_groups.items():
@@ -1512,8 +1518,8 @@ def analyze_fraud_session(self, session_id: str, fraud_type: str) -> Dict[str, A
                     'details': {
                         'unique_values': list(set(token_data['values'])),
                         'token_count': len(token_data['tokens']),
-                        'first_seen': min(token_data['timestamps']),
-                        'last_seen': max(token_data['timestamps'])
+                        'first_seen': min(token_data['timestamps']) if token_data['timestamps'] else 'N/A',
+                        'last_seen': max(token_data['timestamps']) if token_data['timestamps'] else 'N/A'
                     }
                 })
             else:
@@ -1531,7 +1537,7 @@ def analyze_fraud_session(self, session_id: str, fraud_type: str) -> Dict[str, A
         
         return consistency_checks
 
-    def _group_tokens_by_identity(self, jwt_tokens: List[Dict]) -> Dict[str, Dict]:
+    def _group_tokens_by_identity(self, jwt_tokens: List[Dict], validations: List[Dict]) -> Dict[str, Dict]:
         """
         Group JWT tokens by identity claim values
         """
@@ -1539,8 +1545,10 @@ def analyze_fraud_session(self, session_id: str, fraud_type: str) -> Dict[str, A
         
         for token_info in jwt_tokens:
             # Get the validation result for this token
-            for validation in self.current_validations:
-                if validation.get('token_id') == f"jwt_{token_info.get('log_id', 'unknown')}_{len(token_info.get('token', ''))}":
+            token_id = f"jwt_{token_info.get('log_id', 'unknown')}_{len(token_info.get('token', ''))}"
+            
+            for validation in validations:
+                if validation.get('token_id') == token_id:
                     identity_data = validation.get('identity_data', {})
                     
                     for identity_type, data in identity_data.items():
@@ -1639,9 +1647,6 @@ def analyze_fraud_session(self, session_id: str, fraud_type: str) -> Dict[str, A
         """
         Generate enhanced fraud analysis including JWT validation results
         """
-        # Store validation results for grouping function
-        self.current_validations = jwt_validation_results.get('identity_consistency_checks', [])
-        
         # Get existing analysis
         base_analysis = self._generate_fraud_analysis(
             session_id, fraud_type, session_logs, order_classification,
@@ -1690,206 +1695,3 @@ def analyze_fraud_session(self, session_id: str, fraud_type: str) -> Dict[str, A
         }
         
         return base_analysis
-
-    # Keep existing methods from original fraud service
-    def _gather_session_logs(self, session_id: str) -> Dict[str, List]:
-        """Gather logs from all relevant sources for the session"""
-        session_logs = {
-            'fraud_detection': [],
-            'payment_gateway': [],
-            'full_auth': [],
-            'api_gateway': [],
-            'customer_data': []
-        }
-        
-        # Search each log type for the session
-        log_types = ['fraud-detection', 'payment-gateway', 'full-auth', 'api-gateway']
-        
-        for log_type in log_types:
-            try:
-                result = self.elasticsearch_service.search_logs(
-                    log_type=log_type,
-                    session_id=session_id,
-                    additional_filters={}
-                )
-                
-                if result.get('success') and result.get('logs'):
-                    session_logs[log_type.replace('-', '_')] = result['logs']
-                else:
-                    # Generate mock data for demonstration
-                    mock_logs = self._generate_mock_logs_for_type(log_type, session_id)
-                    session_logs[log_type.replace('-', '_')] = mock_logs
-                    
-            except Exception as e:
-                logger.warning(f"Error searching {log_type} logs: {e}")
-                # Generate mock data as fallback
-                mock_logs = self._generate_mock_logs_for_type(log_type, session_id)
-                session_logs[log_type.replace('-', '_')] = mock_logs
-        
-        return session_logs
-
-    def _generate_mock_logs_for_type(self, log_type: str, session_id: str) -> List[Dict]:
-        """Generate mock logs with JWT tokens for testing"""
-        current_time = datetime.now()
-        mock_logs = []
-        
-        # Base mock logs
-        base_log = {
-            'id': f'mock_log_{log_type}_1',
-            'timestamp': current_time.isoformat(),
-            'level': 'INFO',
-            'session_id': session_id,
-            'source_type': log_type
-        }
-        
-        if log_type == 'fraud-detection':
-            # Add JWT token in headers
-            mock_jwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMzQ1IiwidXNlcl9pZCI6InVzZXJfMTIzNDUiLCJhY2NvdW50X251bWJlciI6IjEyMzQ1Njc4OTAiLCJtZG4iOiIrMTIzNDU2Nzg5MCIsImVtYWlsIjoidXNlckBleGFtcGxlLmNvbSIsImlhdCI6MTYzOTQ4MzIwMCwiZXhwIjoxNjM5NDg2ODAwfQ.signature"
-            
-            mock_logs.append({
-                **base_log,
-                'message': 'Identity verification API call with JWT authentication',
-                'api_endpoint': '/api/identity/verify',
-                'http_method': 'POST',
-                'status_code': 200,
-                'outgoing_headers': {
-                    'Authorization': f'Bearer {mock_jwt}',
-                    'Content-Type': 'application/json',
-                    'X-Session-ID': session_id,
-                    'User-Agent': 'FraudDetection/1.0'
-                },
-                'request_body': {
-                    'verification_type': 'document',
-                    'user_id': 'user_12345'
-                }
-            })
-            
-            # Add another log with different JWT
-            mock_jwt_2 = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMzQ1IiwidXNlcl9pZCI6InVzZXJfMTIzNDUiLCJhY2NvdW50X251bWJlciI6IjEyMzQ1Njc4OTAiLCJtZG4iOiIrMTIzNDU2Nzg5MCIsImN1c3RvbWVyX2lkIjoiY3VzdF8xMjM0NSIsImlhdCI6MTYzOTQ4MzIwMCwiZXhwIjoxNjM5NDg2ODAwfQ.signature"
-            
-            mock_logs.append({
-                'id': f'mock_log_{log_type}_2',
-                'timestamp': (current_time - timedelta(seconds=30)).isoformat(),
-                'level': 'INFO',
-                'message': 'Risk scoring API call with updated JWT token',
-                'api_endpoint': '/api/risk/calculate',
-                'http_method': 'POST',
-                'status_code': 200,
-                'session_id': session_id,
-                'source_type': log_type,
-                'headers': f'Authorization: Bearer {mock_jwt_2}\nContent-Type: application/json\nX-Correlation-ID: corr_123',
-                'response_data': {
-                    'risk_score': 45,
-                    'decision': 'APPROVE'
-                }
-            })
-        
-        elif log_type == 'full-auth':
-            # Authentication logs with JWT
-            auth_jwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMzQ1IiwidXNlcl9pZCI6InVzZXJfMTIzNDUiLCJlbWFpbCI6InVzZXJAZXhhbXBsZS5jb20iLCJyb2xlIjoiY3VzdG9tZXIiLCJhdXRoX21ldGhvZCI6InBhc3N3b3JkIiwiaWF0IjoxNjM5NDgzMjAwLCJleHAiOjE2Mzk0ODY4MDB9.auth_signature"
-            
-            mock_logs.append({
-                **base_log,
-                'message': 'User authentication successful',
-                'api_endpoint': '/api/auth/login',
-                'http_method': 'POST',
-                'status_code': 200,
-                'outgoing_headers': {
-                    'Set-Cookie': f'auth_token={auth_jwt}; HttpOnly; Secure',
-                    'Authorization': f'Bearer {auth_jwt}',
-                    'X-Auth-Method': 'PASSWORD'
-                },
-                'auth_result': {
-                    'user_id': 'user_12345',
-                    'auth_method': 'PASSWORD',
-                    'success': True
-                }
-            })
-        
-        elif log_type == 'payment-gateway':
-            # Payment logs with JWT
-            payment_jwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMzQ1IiwidXNlcl9pZCI6InVzZXJfMTIzNDUiLCJhY2NvdW50X251bWJlciI6IjEyMzQ1Njc4OTAiLCJwYXltZW50X21ldGhvZCI6ImNyZWRpdF9jYXJkIiwiYW1vdW50IjoxNTAuMDAsImlhdCI6MTYzOTQ4MzIwMCwiZXhwIjoxNjM5NDg2ODAwfQ.payment_signature"
-            
-            mock_logs.append({
-                **base_log,
-                'message': 'Payment processing initiated',
-                'api_endpoint': '/api/payment/process',
-                'http_method': 'POST',
-                'status_code': 200,
-                'request_headers': json.dumps({
-                    'Authorization': f'Bearer {payment_jwt}',
-                    'Content-Type': 'application/json',
-                    'X-Payment-Gateway': 'STRIPE'
-                }),
-                'payment_data': {
-                    'amount': 150.00,
-                    'currency': 'USD',
-                    'payment_method': 'credit_card'
-                }
-            })
-        
-        return mock_logs
-
-    def _classify_order_type(self, session_logs: Dict) -> Dict:
-        """Classify the type of order/transaction"""
-        return {
-            'type': 'purchase',
-            'confidence': 0.85,
-            'amount': 150.00,
-            'currency': 'USD'
-        }
-
-    def _determine_customer_type(self, session_logs: Dict) -> Dict:
-        """Determine customer type"""
-        return {
-            'type': 'existing_customer',
-            'confidence': 0.75,
-            'customer_id': 'cust_12345'
-        }
-
-    def _analyze_fraud_monitoring_calls_fixed(self, session_logs: Dict, fraud_type: str) -> Dict:
-        """Analyze fraud monitoring calls"""
-        return {
-            'total_calls': 5,
-            'successful_calls': 4,
-            'failed_calls': 1,
-            'call_categories': {
-                'identity_validation': 2,
-                'risk_scoring': 1,
-                'device_analysis': 1,
-                'behavioral_check': 1
-            }
-        }
-
-    def _generate_fraud_analysis(self, session_id: str, fraud_type: str, session_logs: Dict,
-                               order_classification: Dict, customer_type: Dict,
-                               fraud_monitoring_analysis: Dict) -> Dict:
-        """Generate base fraud analysis (existing method)"""
-        return {
-            'session_id': session_id,
-            'fraud_type': fraud_type,
-            'ai_insights': {
-                'overall_session_health': 'Session analysis completed with JWT validation',
-                'key_findings': [
-                    'Identity verification systems operational',
-                    'Payment processing completed successfully',
-                    'Risk scoring within acceptable parameters'
-                ],
-                'fraud_risk_assessment': 'Medium risk based on comprehensive analysis',
-                'critical_issues': [],
-                'positive_indicators': [
-                    'JWT tokens properly structured',
-                    'Identity claims consistent',
-                    'Authentication methods secure'
-                ],
-                'recommended_actions': [
-                    'Continue monitoring session patterns',
-                    'Review JWT token expiration policies'
-                ],
-                'session_score': 75,
-                'confidence_level': 'high'
-            },
-            'order_classification': order_classification,
-            'customer_type': customer_type,
-            'fraud_monitoring_analysis': fraud_monitoring_analysis
-        }
