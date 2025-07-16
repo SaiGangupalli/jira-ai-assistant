@@ -6723,3 +6723,510 @@ document.addEventListener('DOMContentLoaded', function() {
 // Export functions for use in other modules
 window.performFraudAnalysis = performFraudAnalysis;
 window.displayEnhancedFraudResults = displayEnhancedFraudResults;
+
+// Global variables for API Security
+let currentAPISecurityData = null;
+let apiSecuritySubServices = {};
+
+// Show API Security form
+function showAPISecurityForm() {
+    console.log('Showing API Security form');
+    
+    // First, load available sub-services
+    loadAPISecuritySubServices();
+}
+
+// Load available sub-services from backend
+async function loadAPISecuritySubServices() {
+    try {
+        showAPISecurityFormLoading();
+        
+        const response = await fetch('/api/api-security/sub-services', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+            apiSecuritySubServices = result.sub_services;
+            displayAPISecurityForm();
+        } else {
+            showAPISecurityError(`Failed to load sub-services: ${result.error}`);
+        }
+        
+    } catch (error) {
+        console.error('Error loading sub-services:', error);
+        showAPISecurityError('Failed to load sub-services. Please check your connection.');
+    }
+}
+
+// Show loading state while fetching sub-services
+function showAPISecurityFormLoading() {
+    const chatContainer = document.getElementById('chatContainer');
+    const loadingContent = `
+        <div class="api-security-loading">
+            <button class="back-button" onclick="showTab('api-security')">
+                ← Back to API Security
+            </button>
+            
+            <div class="api-security-form">
+                <h3>
+                    <span>🔒</span>
+                    <span>API Security Test Case Generation</span>
+                </h3>
+                
+                <div style="text-align: center; padding: 40px;">
+                    <div class="loading-spinner"></div>
+                    <p style="color: #cccccc; margin-top: 20px;">Loading available sub-services...</p>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    chatContainer.innerHTML = loadingContent;
+}
+
+// Display the API Security form with sub-services dropdown
+function displayAPISecurityForm() {
+    const chatContainer = document.getElementById('chatContainer');
+    
+    // Build dropdown options
+    let subServiceOptions = '<option value="">Select a sub-service...</option>';
+    for (const [key, service] of Object.entries(apiSecuritySubServices)) {
+        subServiceOptions += `<option value="${key}">${service.name}</option>`;
+    }
+    
+    const formContent = `
+        <div class="api-security-form-container">
+            <button class="back-button" onclick="showTab('api-security')">
+                ← Back to API Security
+            </button>
+            
+            <div class="api-security-form">
+                <h3>
+                    <span>🔒</span>
+                    <span>API Security Test Case Generation</span>
+                </h3>
+                
+                <p style="color: #cccccc; margin-bottom: 25px; text-align: center;">
+                    Select a sub-service to generate comprehensive security test cases for its API endpoints.
+                </p>
+                
+                <div class="form-group">
+                    <label for="subServiceSelect">Sub-Service:</label>
+                    <select id="subServiceSelect" onchange="updateSubServiceDescription()">
+                        ${subServiceOptions}
+                    </select>
+                </div>
+                
+                <div id="subServiceDescription" style="display: none;" class="alert alert-info">
+                    <strong>Service Description:</strong>
+                    <p id="descriptionText"></p>
+                </div>
+                
+                <div class="form-group">
+                    <label>Additional Filters (Optional):</label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 10px;">
+                        <div>
+                            <label for="statusCodeFilter" style="font-size: 0.9rem; color: #ccc;">Status Code:</label>
+                            <select id="statusCodeFilter">
+                                <option value="">All Status Codes</option>
+                                <option value="200">200 - OK</option>
+                                <option value="201">201 - Created</option>
+                                <option value="400">400 - Bad Request</option>
+                                <option value="401">401 - Unauthorized</option>
+                                <option value="403">403 - Forbidden</option>
+                                <option value="404">404 - Not Found</option>
+                                <option value="500">500 - Internal Server Error</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="methodFilter" style="font-size: 0.9rem; color: #ccc;">HTTP Method:</label>
+                            <select id="methodFilter">
+                                <option value="">All Methods</option>
+                                <option value="GET">GET</option>
+                                <option value="POST">POST</option>
+                                <option value="PUT">PUT</option>
+                                <option value="DELETE">DELETE</option>
+                                <option value="PATCH">PATCH</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <button class="generate-test-cases-button" onclick="generateAPISecurityTestCases()" id="generateButton">
+                    <span>🔍</span>
+                    <span>Generate API Security Test Cases</span>
+                </button>
+                
+                <div style="margin-top: 20px; padding: 15px; background: #2d2d30; border-radius: 8px; color: #ccc; font-size: 0.9rem;">
+                    <strong>What will be generated:</strong>
+                    <ul style="margin-top: 10px; padding-left: 20px;">
+                        <li>Authentication & Authorization test cases</li>
+                        <li>Input validation and injection attack tests</li>
+                        <li>Rate limiting and DoS protection tests</li>
+                        <li>Data exposure and privacy tests</li>
+                        <li>Session management vulnerability tests</li>
+                        <li>CORS and cross-origin security tests</li>
+                        <li>Error handling and information disclosure tests</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    chatContainer.innerHTML = formContent;
+}
+
+// Update sub-service description when selection changes
+function updateSubServiceDescription() {
+    const select = document.getElementById('subServiceSelect');
+    const descriptionDiv = document.getElementById('subServiceDescription');
+    const descriptionText = document.getElementById('descriptionText');
+    
+    if (select.value && apiSecuritySubServices[select.value]) {
+        const service = apiSecuritySubServices[select.value];
+        descriptionText.textContent = service.description;
+        descriptionDiv.style.display = 'block';
+    } else {
+        descriptionDiv.style.display = 'none';
+    }
+}
+
+// Generate API Security test cases
+async function generateAPISecurityTestCases() {
+    const subServiceSelect = document.getElementById('subServiceSelect');
+    const statusCodeFilter = document.getElementById('statusCodeFilter');
+    const methodFilter = document.getElementById('methodFilter');
+    const generateButton = document.getElementById('generateButton');
+    
+    // Validate selection
+    if (!subServiceSelect.value) {
+        showAlert('Please select a sub-service first.', 'error');
+        return;
+    }
+    
+    // Prepare filters
+    const filters = {};
+    if (statusCodeFilter.value) filters.status_code = statusCodeFilter.value;
+    if (methodFilter.value) filters.method = methodFilter.value;
+    
+    // Show loading state
+    generateButton.disabled = true;
+    generateButton.innerHTML = `
+        <div class="loading-spinner"></div>
+        <span>Generating Test Cases...</span>
+    `;
+    
+    try {
+        console.log('Generating API security test cases for:', subServiceSelect.value);
+        
+        const response = await fetch('/api/api-security/generate-test-cases', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                sub_service: subServiceSelect.value,
+                filters: filters
+            })
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+            currentAPISecurityData = result;
+            displayAPISecurityTestCases(result);
+            showAlert(`Successfully generated ${result.test_cases.length} security test cases!`, 'success');
+        } else {
+            showAPISecurityError(`Failed to generate test cases: ${result.error}`);
+        }
+        
+    } catch (error) {
+        console.error('Error generating test cases:', error);
+        showAPISecurityError('Failed to generate test cases. Please check your connection and try again.');
+    } finally {
+        // Reset button state
+        generateButton.disabled = false;
+        generateButton.innerHTML = `
+            <span>🔍</span>
+            <span>Generate API Security Test Cases</span>
+        `;
+    }
+}
+
+// Display generated test cases
+function displayAPISecurityTestCases(data) {
+    const chatContainer = document.getElementById('chatContainer');
+    
+    // Build test cases HTML
+    let testCasesHtml = '';
+    data.test_cases.forEach(testCase => {
+        const riskClass = `risk-${testCase.risk_level.toLowerCase()}`;
+        const testSteps = Array.isArray(testCase.test_steps) ? testCase.test_steps : [testCase.test_steps];
+        const payloadExamples = Array.isArray(testCase.payload_examples) ? testCase.payload_examples : [];
+        const remediationSuggestions = Array.isArray(testCase.remediation_suggestions) ? testCase.remediation_suggestions : [];
+        
+        testCasesHtml += `
+            <div class="test-case-result">
+                <div class="test-case-header">
+                    <span class="test-case-id">${testCase.test_case_id}</span>
+                    <span class="risk-level ${riskClass}">${testCase.risk_level}</span>
+                </div>
+                
+                <div class="test-case-title">${testCase.test_case_name}</div>
+                <div class="test-case-description">${testCase.test_description}</div>
+                
+                <div class="test-case-details">
+                    <div class="test-case-section">
+                        <h5>Test Steps:</h5>
+                        <ul>
+                            ${testSteps.map(step => `<li>${step}</li>`).join('')}
+                        </ul>
+                    </div>
+                    
+                    <div class="test-case-section">
+                        <h5>Expected Behavior:</h5>
+                        <p>${testCase.expected_behavior}</p>
+                    </div>
+                    
+                    ${payloadExamples.length > 0 ? `
+                        <div class="test-case-section">
+                            <h5>Payload Examples:</h5>
+                            <pre>${payloadExamples.join('\\n\\n')}</pre>
+                        </div>
+                    ` : ''}
+                    
+                    <div class="test-case-section">
+                        <h5>Remediation:</h5>
+                        <ul>
+                            ${remediationSuggestions.map(suggestion => `<li>${suggestion}</li>`).join('')}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    const resultsContent = `
+        <div class="api-security-results">
+            <button class="back-button" onclick="showAPISecurityForm()">
+                ← Back to Form
+            </button>
+            
+            <div class="results-header" style="text-align: center; margin-bottom: 30px;">
+                <h2>
+                    <span>🔒</span>
+                    <span>API Security Test Cases Generated</span>
+                </h2>
+                
+                <div class="results-summary" style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;">
+                    <div style="background: #1a1a1a; padding: 15px 25px; border-radius: 10px; border: 1px solid #444;">
+                        <strong style="color: #007bff;">Service:</strong> ${data.service_name}
+                    </div>
+                    <div style="background: #1a1a1a; padding: 15px 25px; border-radius: 10px; border: 1px solid #444;">
+                        <strong style="color: #007bff;">Test Cases:</strong> ${data.test_cases.length}
+                    </div>
+                    <div style="background: #1a1a1a; padding: 15px 25px; border-radius: 10px; border: 1px solid #444;">
+                        <strong style="color: #007bff;">API Calls Analyzed:</strong> ${data.api_data_count}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="test-cases-container">
+                ${testCasesHtml}
+            </div>
+            
+            <div style="text-align: center; margin-top: 30px;">
+                <button class="generate-test-cases-button" onclick="downloadTestCasesReport()" style="width: auto; padding: 12px 30px;">
+                    <span>📥</span>
+                    <span>Download Test Cases Report</span>
+                </button>
+            </div>
+        </div>
+    `;
+    
+    chatContainer.innerHTML = resultsContent;
+}
+
+// Download test cases report
+function downloadTestCasesReport() {
+    if (!currentAPISecurityData) {
+        showAlert('No test cases data available for download.', 'error');
+        return;
+    }
+    
+    try {
+        // Create a comprehensive report
+        let reportContent = `API Security Test Cases Report\n`;
+        reportContent += `Generated: ${new Date().toLocaleString()}\n`;
+        reportContent += `Service: ${currentAPISecurityData.service_name}\n`;
+        reportContent += `Sub-service: ${currentAPISecurityData.sub_service}\n`;
+        reportContent += `API Calls Analyzed: ${currentAPISecurityData.api_data_count}\n`;
+        reportContent += `Test Cases Generated: ${currentAPISecurityData.test_cases.length}\n\n`;
+        reportContent += `${'='.repeat(80)}\n\n`;
+        
+        currentAPISecurityData.test_cases.forEach((testCase, index) => {
+            reportContent += `Test Case ${index + 1}: ${testCase.test_case_name}\n`;
+            reportContent += `ID: ${testCase.test_case_id}\n`;
+            reportContent += `Risk Level: ${testCase.risk_level}\n`;
+            reportContent += `Category: ${testCase.vulnerability_category}\n`;
+            reportContent += `Description: ${testCase.test_description}\n`;
+            reportContent += `Expected Behavior: ${testCase.expected_behavior}\n`;
+            
+            if (testCase.test_steps && testCase.test_steps.length > 0) {
+                reportContent += `Test Steps:\n`;
+                testCase.test_steps.forEach((step, stepIndex) => {
+                    reportContent += `  ${stepIndex + 1}. ${step}\n`;
+                });
+            }
+            
+            if (testCase.payload_examples && testCase.payload_examples.length > 0) {
+                reportContent += `Payload Examples:\n`;
+                testCase.payload_examples.forEach(payload => {
+                    reportContent += `  ${payload}\n`;
+                });
+            }
+            
+            if (testCase.remediation_suggestions && testCase.remediation_suggestions.length > 0) {
+                reportContent += `Remediation Suggestions:\n`;
+                testCase.remediation_suggestions.forEach((suggestion, suggestionIndex) => {
+                    reportContent += `  ${suggestionIndex + 1}. ${suggestion}\n`;
+                });
+            }
+            
+            reportContent += `\n${'-'.repeat(40)}\n\n`;
+        });
+        
+        // Create and download file
+        const blob = new Blob([reportContent], { type: 'text/plain' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `api-security-test-cases-${currentAPISecurityData.sub_service}-${new Date().toISOString().split('T')[0]}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        showAlert('Test cases report downloaded successfully!', 'success');
+        
+    } catch (error) {
+        console.error('Download error:', error);
+        showAlert('Failed to download report. Please try again.', 'error');
+    }
+}
+
+// Show API Security error
+function showAPISecurityError(message) {
+    const chatContainer = document.getElementById('chatContainer');
+    const errorContent = `
+        <div class="api-security-error">
+            <button class="back-button" onclick="showTab('api-security')">
+                ← Back to API Security
+            </button>
+            
+            <div class="api-security-form">
+                <h3>
+                    <span>🔒</span>
+                    <span>API Security Test Case Generation</span>
+                </h3>
+                
+                <div class="alert alert-error">
+                    <strong>Error:</strong> ${message}
+                </div>
+                
+                <div style="text-align: center; margin-top: 20px;">
+                    <button class="generate-test-cases-button" onclick="showAPISecurityForm()" style="width: auto; padding: 12px 30px;">
+                        <span>🔄</span>
+                        <span>Try Again</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    chatContainer.innerHTML = errorContent;
+}
+
+// Test API Security service connection
+async function testAPISecurityConnection() {
+    try {
+        const response = await fetch('/api/api-security/test-connection', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+            console.log('API Security service connection test passed:', result);
+            showAlert('API Security service is operational!', 'success');
+        } else {
+            console.error('API Security service connection test failed:', result);
+            showAlert(`API Security service test failed: ${result.error}`, 'error');
+        }
+        
+        return result;
+        
+    } catch (error) {
+        console.error('Error testing API Security connection:', error);
+        showAlert('Failed to test API Security connection.', 'error');
+        return { success: false, error: error.message };
+    }
+}
+
+// Enhanced alert function (if not already present)
+function showAlert(message, type = 'info') {
+    // Remove existing alerts
+    const existingAlerts = document.querySelectorAll('.custom-alert');
+    existingAlerts.forEach(alert => alert.remove());
+    
+    const alertClass = type === 'success' ? 'alert-success' : 
+                     type === 'error' ? 'alert-error' : 'alert-info';
+    
+    const alertHtml = `
+        <div class="custom-alert ${alertClass}" style="
+            position: fixed; 
+            top: 20px; 
+            right: 20px; 
+            padding: 15px 20px; 
+            border-radius: 8px; 
+            z-index: 1000;
+            max-width: 400px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            ${type === 'success' ? 'background: #1a2d1a; border: 1px solid #28a745; color: #28a745;' : 
+              type === 'error' ? 'background: #2d1a1a; border: 1px solid #dc3545; color: #dc3545;' : 
+              'background: #1a1a2d; border: 1px solid #007bff; color: #007bff;'}
+        ">
+            ${message}
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', alertHtml);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        const alert = document.querySelector('.custom-alert');
+        if (alert) {
+            alert.remove();
+        }
+    }, 5000);
+}
+
+// Debug function for development
+function debugAPISecurityService() {
+    console.log('🔒 API Security Service Debug Info:');
+    console.log('- Current data:', currentAPISecurityData);
+    console.log('- Available sub-services:', apiSecuritySubServices);
+    console.log('- Test connection: call testAPISecurityConnection()');
+}
+
+// Add console helper for development
+console.log('🔒 API Security Test Case Generation loaded');
+console.log('Available functions: showAPISecurityForm(), testAPISecurityConnection(), debugAPISecurityService()');
