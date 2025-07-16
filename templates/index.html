@@ -55,6 +55,9 @@
                         <button class="tab-button" onclick="showTab('jenkins')">
                             🔧 Jenkins Jobs
                         </button>
+                        <button class="tab-button" onclick="showTab('api-security')">
+                            🔒 API Security
+                        </button>                        
                     </div>
 
                     <div class="tab-content" id="jira-tab">
@@ -247,7 +250,16 @@
                             </div>
                         </div>
                     </div>
-
+                    <div class="tab-content hidden" id="api-security-tab">
+                        <h3>API Security Test Case Generation</h3>
+                        <div class="api-security-options">
+                            <div class="api-security-option" onclick="showAPISecurityForm()">
+                                <div class="api-security-option-icon">🔒</div>
+                                <h4>Generate API Security Test Cases</h4>
+                                <p>Generate comprehensive security test cases for your API endpoints using AI</p>
+                            </div>
+                        </div>
+                    </div>                    
                     <div class="tab-content hidden" id="fraud-tab">
                         <h3>AI-Powered Fraud Analysis</h3>
                         <p style="color: #cccccc; margin-bottom: 25px; text-align: center; font-size: 1rem;">
