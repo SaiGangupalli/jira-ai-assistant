@@ -1,215 +1,386 @@
-# Add these endpoints to your app.py file
+# services/api_security_service.py
+import logging
+import openai
+import json
+from typing import Dict, List, Any, Optional
+from datetime import datetime
+from services.elasticsearch_service import ElasticsearchService
+from config.settings import Config
 
-from services.api_security_service import APISecurityService
+logger = logging.getLogger(__name__)
 
-# Initialize API Security Service
-api_security_service = None
-try:
-    api_security_service = APISecurityService()
-    logger.info("API Security Service initialized successfully")
-except Exception as e:
-    logger.error(f"Failed to initialize API Security Service: {e}")
-
-# API Security Test Case Generation Endpoints
-
-@app.route('/api/api-security/sub-services', methods=['GET'])
-def get_api_security_sub_services():
-    """Get available sub-services for API security testing"""
-    if not api_security_service:
-        return jsonify({
-            'success': False,
-            'error': 'API Security service not available. Please check Elasticsearch and OpenAI configuration.'
-        }), 503
+class APISecurityService:
+    """Service for API Security test case generation with Elasticsearch integration"""
     
-    try:
-        result = api_security_service.get_sub_services()
-        return jsonify(result)
-    except Exception as e:
-        logger.error(f"Error getting sub-services: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/api-security/generate-test-cases', methods=['POST'])
-def generate_api_security_test_cases():
-    """Generate API security test cases for a specific sub-service"""
-    if not api_security_service:
-        return jsonify({
-            'success': False,
-            'error': 'API Security service not available. Please check Elasticsearch and OpenAI configuration.'
-        }), 503
-    
-    try:
-        data = request.get_json()
-        if not data or not data.get('sub_service'):
-            return jsonify({
-                'success': False,
-                'error': 'Missing required field: sub_service'
-            }), 400
+    def __init__(self):
+        self.elasticsearch_service = ElasticsearchService()
+        openai.api_key = Config.OPENAI_API_KEY
         
-        sub_service = data.get('sub_service')
-        additional_filters = data.get('filters', {})
-        
-        logger.info(f"Generating API security test cases for sub-service: {sub_service}")
-        
-        result = api_security_service.generate_security_test_cases(
-            sub_service=sub_service,
-            additional_filters=additional_filters
-        )
-        
-        if result['success']:
-            logger.info(f"Successfully generated {len(result['test_cases'])} test cases for {sub_service}")
-        else:
-            logger.error(f"Failed to generate test cases for {sub_service}: {result.get('error')}")
-        
-        return jsonify(result)
-        
-    except Exception as e:
-        logger.error(f"Error in API security test case generation: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/api-security/test-connection', methods=['GET'])
-def test_api_security_connection():
-    """Test API Security service connection"""
-    if not api_security_service:
-        return jsonify({
-            'success': False,
-            'error': 'API Security service not available'
-        }), 503
-    
-    try:
-        result = api_security_service.test_connection()
-        return jsonify(result)
-    except Exception as e:
-        logger.error(f"Error testing API security connection: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-# Update the health check endpoint to include API Security service
-@app.route('/api/health', methods=['GET'])
-def health_check():
-    """Health check endpoint - UPDATE this existing function to include API Security service"""
-    status = {
-        'status': 'healthy',
-        'timestamp': datetime.now().isoformat(),
-        'services': {
-            'jira_service': jira_service is not None,
-            'security_service': security_service is not None,
-            'order_validator': order_validator is not None,
-            'elasticsearch_service': elasticsearch_service is not None,
-            'fraud_analysis_service': fraud_analysis_service is not None,
-            'jenkins_service': jenkins_service is not None,
-            'api_security_service': api_security_service is not None  # Add this line
-        }
-    }
-    
-    try:
-        from config.settings import Config
-        status.update({
-            'jira_configured': bool(Config.JIRA_URL and Config.JIRA_USERNAME and Config.JIRA_TOKEN),
-            'openai_configured': bool(Config.OPENAI_API_KEY),
-            'oracle_configured': bool(Config.ORACLE_DSN and Config.ORACLE_USER),
-            'elasticsearch_configured': bool(Config.ELASTICSEARCH_HOST and Config.ELASTICSEARCH_USERNAME),
-            'jenkins_configured': bool(Config.JENKINS_URL and Config.JENKINS_USERNAME and Config.JENKINS_TOKEN)
-        })
-        
-        # Add API Security service info
-        status['api_security'] = {
-            'service_available': api_security_service is not None,
-            'elasticsearch_required': True,
-            'openai_required': True,
-            'sub_services_available': len(api_security_service.sub_services) if api_security_service else 0
-        }
-        
-    except:
-        status.update({
-            'jira_configured': False,
-            'openai_configured': False,
-            'oracle_configured': False,
-            'elasticsearch_configured': False,
-            'jenkins_configured': False,
-            'api_security': {'service_available': False},
-            'config_error': 'Configuration module not available'
-        })
-        
-    return jsonify(status)
-
-# Update the test connections endpoint to include API Security service
-@app.route('/api/test-connections', methods=['GET'])
-def test_connections():
-    """Test all service connections including API Security service - UPDATE this existing function"""
-    results = {}
-    
-    # Test Jira connection
-    if jira_service:
-        try:
-            jira_result = jira_service.test_connection()
-            results['jira'] = jira_result
-        except Exception as e:
-            results['jira'] = {'success': False, 'error': str(e)}
-    else:
-        results['jira'] = {'success': False, 'error': 'Service not initialized'}
-    
-    # Test Oracle connection
-    if order_validator:
-        try:
-            oracle_result = order_validator.test_connection()
-            results['oracle'] = oracle_result
-        except Exception as e:
-            results['oracle'] = {'success': False, 'error': str(e)}
-    else:
-        results['oracle'] = {'success': False, 'error': 'Service not initialized'}
-    
-    # Test Elasticsearch connection
-    if elasticsearch_service:
-        try:
-            elasticsearch_result = elasticsearch_service.test_connection()
-            results['elasticsearch'] = elasticsearch_result
-        except Exception as e:
-            results['elasticsearch'] = {'success': False, 'error': str(e)}
-    else:
-        results['elasticsearch'] = {'success': False, 'error': 'Service not initialized'}
-    
-    # Test Fraud Analysis service
-    if fraud_analysis_service:
-        try:
-            fraud_types = fraud_analysis_service.get_fraud_types()
-            results['fraud_analysis'] = {
-                'success': True,
-                'message': 'Fraud analysis service operational',
-                'available_types': len(fraud_types),
-                'ai_enabled': bool(getattr(Config, 'OPENAI_API_KEY', None)),
-                'elasticsearch_required': True
+        # Define sub-services available for API security testing
+        self.sub_services = {
+            'payment_gateway': {
+                'name': 'Payment Gateway',
+                'description': 'Payment processing and transaction APIs',
+                'es_index': 'payment-api-logs*',
+                'api_patterns': ['payment', 'transaction', 'checkout', 'billing']
+            },
+            'user_management': {
+                'name': 'User Management',
+                'description': 'User authentication and authorization APIs',
+                'es_index': 'user-api-logs*',
+                'api_patterns': ['user', 'auth', 'login', 'register', 'profile']
+            },
+            'order_processing': {
+                'name': 'Order Processing',
+                'description': 'Order creation and management APIs',
+                'es_index': 'order-api-logs*',
+                'api_patterns': ['order', 'cart', 'inventory', 'fulfillment']
+            },
+            'notification_service': {
+                'name': 'Notification Service',
+                'description': 'Email, SMS and push notification APIs',
+                'es_index': 'notification-api-logs*',
+                'api_patterns': ['notification', 'email', 'sms', 'push']
+            },
+            'analytics_service': {
+                'name': 'Analytics Service',
+                'description': 'Data analytics and reporting APIs',
+                'es_index': 'analytics-api-logs*',
+                'api_patterns': ['analytics', 'reporting', 'metrics', 'dashboard']
+            },
+            'integration_service': {
+                'name': 'Integration Service',
+                'description': 'Third-party integration APIs',
+                'es_index': 'integration-api-logs*',
+                'api_patterns': ['integration', 'webhook', 'callback', 'partner']
             }
-        except Exception as e:
-            results['fraud_analysis'] = {'success': False, 'error': str(e)}
-    else:
-        results['fraud_analysis'] = {'success': False, 'error': 'Service not initialized'}
+        }
     
-    # Test Jenkins connection
-    if jenkins_service:
+    def get_sub_services(self) -> Dict[str, Any]:
+        """Get available sub-services for API security testing"""
+        return {
+            'success': True,
+            'sub_services': self.sub_services
+        }
+    
+    def generate_security_test_cases(self, sub_service: str, additional_filters: Optional[Dict] = None) -> Dict[str, Any]:
+        """Generate API security test cases for a specific sub-service"""
         try:
-            jenkins_result = jenkins_service.test_connection()
-            results['jenkins'] = jenkins_result
+            if sub_service not in self.sub_services:
+                return {
+                    'success': False,
+                    'error': f'Invalid sub-service: {sub_service}. Available services: {list(self.sub_services.keys())}'
+                }
+            
+            service_config = self.sub_services[sub_service]
+            
+            # Step 1: Fetch API data from Elasticsearch
+            api_data = self._fetch_api_data_from_elasticsearch(service_config, additional_filters)
+            
+            if not api_data['success']:
+                return api_data
+            
+            # Step 2: Generate security test cases using LLM
+            test_cases = self._generate_test_cases_with_llm(api_data['data'], service_config)
+            
+            return {
+                'success': True,
+                'sub_service': sub_service,
+                'service_name': service_config['name'],
+                'api_data_count': len(api_data['data']),
+                'test_cases': test_cases,
+                'generated_at': datetime.now().isoformat()
+            }
+            
         except Exception as e:
-            results['jenkins'] = {'success': False, 'error': str(e)}
-    else:
-        results['jenkins'] = {'success': False, 'error': 'Service not initialized'}
+            logger.error(f"Error generating security test cases for {sub_service}: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
     
-    # Test API Security service
-    if api_security_service:
+    def _fetch_api_data_from_elasticsearch(self, service_config: Dict, additional_filters: Optional[Dict] = None) -> Dict[str, Any]:
+        """Fetch API request/response data from Elasticsearch"""
         try:
-            api_security_result = api_security_service.test_connection()
-            results['api_security'] = api_security_result
+            # Build Elasticsearch query
+            query = {
+                "size": 50,  # Limit results for processing
+                "query": {
+                    "bool": {
+                        "must": [
+                            {
+                                "range": {
+                                    "@timestamp": {
+                                        "gte": "now-24h"  # Last 24 hours
+                                    }
+                                }
+                            }
+                        ],
+                        "should": [
+                            {
+                                "terms": {
+                                    "api_endpoint.keyword": service_config['api_patterns']
+                                }
+                            },
+                            {
+                                "multi_match": {
+                                    "query": " ".join(service_config['api_patterns']),
+                                    "fields": ["request_path", "service_name", "endpoint"]
+                                }
+                            }
+                        ],
+                        "minimum_should_match": 1
+                    }
+                },
+                "sort": [
+                    {
+                        "@timestamp": {"order": "desc"}
+                    }
+                ],
+                "_source": [
+                    "request_method",
+                    "request_path", 
+                    "request_headers",
+                    "request_body",
+                    "response_status",
+                    "response_headers",
+                    "response_body",
+                    "outgoing_headers",
+                    "api_endpoint",
+                    "service_name",
+                    "@timestamp"
+                ]
+            }
+            
+            # Apply additional filters if provided
+            if additional_filters:
+                if additional_filters.get('status_code'):
+                    query["query"]["bool"]["must"].append({
+                        "term": {"response_status": additional_filters['status_code']}
+                    })
+                
+                if additional_filters.get('method'):
+                    query["query"]["bool"]["must"].append({
+                        "term": {"request_method.keyword": additional_filters['method']}
+                    })
+            
+            # Execute search
+            search_results = self.elasticsearch_service.search(
+                index=service_config['es_index'],
+                body=query
+            )
+            
+            if not search_results['success']:
+                return {
+                    'success': False,
+                    'error': f'Elasticsearch search failed: {search_results.get("error", "Unknown error")}'
+                }
+            
+            # Process and format results
+            api_data = []
+            for hit in search_results['hits']['hits']:
+                source = hit['_source']
+                
+                api_entry = {
+                    'timestamp': source.get('@timestamp'),
+                    'method': source.get('request_method'),
+                    'path': source.get('request_path'),
+                    'endpoint': source.get('api_endpoint'),
+                    'service_name': source.get('service_name'),
+                    'request': {
+                        'headers': source.get('request_headers', {}),
+                        'body': source.get('request_body', {})
+                    },
+                    'response': {
+                        'status': source.get('response_status'),
+                        'headers': source.get('response_headers', {}),
+                        'body': source.get('response_body', {})
+                    },
+                    'outgoing_headers': source.get('outgoing_headers', {})
+                }
+                
+                api_data.append(api_entry)
+            
+            return {
+                'success': True,
+                'data': api_data,
+                'total_found': search_results['hits']['total']['value']
+            }
+            
         except Exception as e:
-            results['api_security'] = {'success': False, 'error': str(e)}
-    else:
-        results['api_security'] = {'success': False, 'error': 'Service not initialized'}
+            logger.error(f"Error fetching API data from Elasticsearch: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
     
-    return jsonify(results)
+    def _generate_test_cases_with_llm(self, api_data: List[Dict], service_config: Dict) -> List[Dict]:
+        """Generate security test cases using LLM"""
+        try:
+            # Prepare API data summary for LLM
+            api_summary = self._prepare_api_summary(api_data)
+            
+            # Create prompt for LLM
+            prompt = f"""
+You are a cybersecurity expert specializing in API security testing. Based on the following API data from the {service_config['name']} service, generate comprehensive security test cases.
+
+Service Information:
+- Name: {service_config['name']}
+- Description: {service_config['description']}
+- API Patterns: {', '.join(service_config['api_patterns'])}
+
+API Data Summary:
+{api_summary}
+
+Generate detailed security test cases covering the following areas:
+1. Authentication & Authorization vulnerabilities
+2. Input validation and injection attacks
+3. Rate limiting and DoS protection
+4. Data exposure and privacy issues
+5. Session management vulnerabilities
+6. CORS and cross-origin issues
+7. API versioning and deprecation security
+8. Error handling and information disclosure
+
+For each test case, provide:
+- Test Case ID
+- Test Case Name
+- Vulnerability Category
+- Risk Level (Critical, High, Medium, Low)
+- Test Description
+- Expected Behavior
+- Test Steps
+- Payload Examples (if applicable)
+- Remediation Suggestions
+
+Format the response as a JSON array of test case objects.
+"""
+            
+            # Call OpenAI API
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a cybersecurity expert specializing in API security testing."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=4000,
+                temperature=0.3
+            )
+            
+            # Parse LLM response
+            llm_response = response.choices[0].message.content.strip()
+            
+            # Try to parse as JSON
+            try:
+                test_cases = json.loads(llm_response)
+                if isinstance(test_cases, list):
+                    return test_cases
+                else:
+                    # If not a list, wrap in array
+                    return [test_cases]
+            except json.JSONDecodeError:
+                # If JSON parsing fails, create a single test case with the raw response
+                return [{
+                    'test_case_id': 'API_SEC_001',
+                    'test_case_name': 'Generated Security Test Cases',
+                    'vulnerability_category': 'General Security',
+                    'risk_level': 'Medium',
+                    'test_description': llm_response,
+                    'expected_behavior': 'Review and implement suggested security measures',
+                    'test_steps': ['Review the generated recommendations', 'Implement security measures'],
+                    'payload_examples': [],
+                    'remediation_suggestions': ['Follow the detailed recommendations provided']
+                }]
+                
+        except Exception as e:
+            logger.error(f"Error generating test cases with LLM: {e}")
+            return [{
+                'test_case_id': 'API_SEC_ERROR',
+                'test_case_name': 'Error in Test Case Generation',
+                'vulnerability_category': 'System Error',
+                'risk_level': 'High',
+                'test_description': f'Failed to generate test cases: {str(e)}',
+                'expected_behavior': 'System should generate test cases successfully',
+                'test_steps': ['Check system configuration', 'Verify API connectivity'],
+                'payload_examples': [],
+                'remediation_suggestions': ['Review system logs', 'Check OpenAI API configuration']
+            }]
+    
+    def _prepare_api_summary(self, api_data: List[Dict]) -> str:
+        """Prepare a summary of API data for LLM processing"""
+        if not api_data:
+            return "No API data available for analysis."
+        
+        summary = f"Total API calls analyzed: {len(api_data)}\n\n"
+        
+        # Group by endpoint
+        endpoints = {}
+        methods = set()
+        status_codes = set()
+        
+        for api_call in api_data:
+            endpoint = api_call.get('path', 'unknown')
+            method = api_call.get('method', 'unknown')
+            status = api_call.get('response', {}).get('status', 'unknown')
+            
+            methods.add(method)
+            status_codes.add(status)
+            
+            if endpoint not in endpoints:
+                endpoints[endpoint] = {
+                    'methods': set(),
+                    'status_codes': set(),
+                    'sample_request': None,
+                    'sample_response': None
+                }
+            
+            endpoints[endpoint]['methods'].add(method)
+            endpoints[endpoint]['status_codes'].add(status)
+            
+            # Store sample request/response for first occurrence
+            if not endpoints[endpoint]['sample_request']:
+                endpoints[endpoint]['sample_request'] = api_call.get('request', {})
+                endpoints[endpoint]['sample_response'] = api_call.get('response', {})
+        
+        summary += f"HTTP Methods used: {', '.join(methods)}\n"
+        summary += f"Response status codes: {', '.join(map(str, status_codes))}\n\n"
+        
+        summary += "API Endpoints analyzed:\n"
+        for endpoint, data in list(endpoints.items())[:10]:  # Limit to first 10
+            summary += f"- {endpoint}\n"
+            summary += f"  Methods: {', '.join(data['methods'])}\n"
+            summary += f"  Status codes: {', '.join(map(str, data['status_codes']))}\n"
+            
+            # Add sample headers for security analysis
+            if data['sample_request'] and data['sample_request'].get('headers'):
+                summary += f"  Sample request headers: {list(data['sample_request']['headers'].keys())}\n"
+            
+            if data['sample_response'] and data['sample_response'].get('headers'):
+                summary += f"  Sample response headers: {list(data['sample_response']['headers'].keys())}\n"
+            
+            summary += "\n"
+        
+        return summary
+    
+    def test_connection(self) -> Dict[str, Any]:
+        """Test service connections"""
+        try:
+            # Test Elasticsearch connection
+            es_test = self.elasticsearch_service.test_connection()
+            
+            # Test OpenAI API
+            openai_test = bool(Config.OPENAI_API_KEY)
+            
+            return {
+                'success': True,
+                'message': 'API Security service operational',
+                'elasticsearch': es_test,
+                'openai_configured': openai_test,
+                'sub_services_count': len(self.sub_services)
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
